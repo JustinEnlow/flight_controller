@@ -38,12 +38,15 @@ impl<T> Dimension3<T>
     }
     
     pub fn x(self: &Self) -> T{self.x}
+    pub fn x_mut(self: &mut Self) -> &mut T{&mut self.x}    //needed for setting PID struct fields
     pub fn set_x(self: &mut Self, x: T){self.x = x}
     
     pub fn y(self: &Self) -> T{self.y}
+    pub fn y_mut(self: &mut Self) -> &mut T{&mut self.y}    //
     pub fn set_y(self: &mut Self, y: T){self.y = y}
     
     pub fn z(self: &Self) -> T{self.z}
+    pub fn z_mut(self: &mut Self) -> &mut T{&mut self.z}    //
     pub fn set_z(self: &mut Self, z: T){self.z = z}
 }
 
@@ -51,7 +54,7 @@ impl<T> Dimension3<T>
 
 #[derive(Clone, Copy)]
 pub struct LinearAssist{
-    enabled: bool,  // does this need to be private? do we lose anything by having this as a public field?
+    enabled: bool,
 }
 impl LinearAssist{
     pub fn new() -> Self{Self{enabled: true}}
@@ -95,9 +98,9 @@ impl<T> AssistOutput<T>
 
 
 
-/// Holds the state of gforce safety system
-/// the system limits g forces experienced by the pilot, if enabled
-/// represents max allowable g forces, as assigned by the pilot, for each control axis
+/// Holds the state of gforce safety system.
+/// the system limits g forces experienced by the pilot, if enabled.
+/// represents max allowable g forces, as assigned by the pilot, for each control axis.
 #[derive(Clone, Copy)]
 pub struct GForceSafety<T>{
     enabled: bool,
@@ -129,7 +132,7 @@ impl<T> GForceSafety<T>
 
 
 
-/// Holds input and output for the Flight Control System
+/// Holds input and output for the Flight Control System.
 pub struct FlightControlSystem<T>{
     input: ControlAxis<Dimension3<T>>,
     output: ControlAxis<Dimension3<T>>,
@@ -161,8 +164,8 @@ impl<T> FlightControlSystem<T>
 
 
 
-/// Pilot specified maximum velocity for each control axis
-pub struct MaxVelocity<T>{  //seems like these fields can be public, because we are not validating/restricting any changes
+/// Pilot specified maximum velocity for each control axis.
+pub struct MaxVelocity<T>{
     linear: Dimension3<T>,
     rotational: Dimension3<T>,
 }
@@ -187,7 +190,7 @@ impl<T> MaxVelocity<T>
 
 
 
-/// the current velocity being experienced by a system. these value should not be assigned directly by the user or developer
+/// the current velocity being experienced by a system. these values should not be assigned directly by the user or developer.
 pub struct Velocity<T>{
     linear: Dimension3<T>,
     rotational: Dimension3<T>,
@@ -213,8 +216,8 @@ impl<T> Velocity<T>
 
 
 
-/// maximum acceleration that a control axis can produce, given the sum of forces for all propulsion devices on that axis
-/// this will be calculated, not directly assigned
+/// maximum acceleration that a control axis can produce, given the sum of forces for all propulsion devices on that axis.
+/// this should be calculated, not directly assigned.
 //#[derive(Clone, Copy)]
 pub struct MaxAvailableAcceleration<T>{
     linear: Dimension3<T>,
@@ -242,9 +245,9 @@ impl<T> MaxAvailableAcceleration<T>
 
 
 /// interpereted as a percentage of max available acceleration, allowing the pilot to limit max acceleration as desired.
-/// low proportion here, and high max velocity, allows craft to slowly achieve a high velocity
-/// high proportion here, and low max velocity, allows craft to quickly achieve a low velocity
-/// both are valid flight profiles for different contexts
+/// low proportion here, and high max velocity, allows craft to slowly achieve a high velocity.
+/// high proportion here, and low max velocity, allows craft to quickly achieve a low velocity.
+/// both are valid flight profiles for different contexts.
 /// 
 /// ex: 
 /// ```
