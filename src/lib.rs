@@ -34,6 +34,8 @@ use std::cmp::PartialOrd;
 use components::*;
 use pid_controller::PID;
 use clamp::*;
+use accelerometer::Acceleration;
+use propulsion_control::MaxAvailableThrust;
 
 pub mod components;
 
@@ -42,8 +44,9 @@ pub mod components;
 pub fn flight_control_system<T>(
     velocity: &Velocity<T>,
     max_velocity: &MaxVelocity<T>,
-    accel_proportion: &DesiredAccelerationProportion<T>,
-    max_accel: &MaxAvailableAcceleration<T>,
+    acceleration: &Acceleration<T>,
+    thrust_proportion: &DesiredThrustProportion<T>,
+    max_thrust: &MaxAvailableThrust<T>,
     linear_assist: &LinearAssist,
     rotational_assist: &RotationalAssist,
     gsafety: &GForceSafety<T>,
@@ -126,52 +129,54 @@ pub fn flight_control_system<T>(
 
     //fcs output as accelerations
     fcs.output_mut().linear_mut().set_x(
-        assist_output.linear().x() * (accel_proportion.linear().x() * max_accel.linear().x())
+        assist_output.linear().x() * (thrust_proportion.linear().x() * max_thrust.linear().x())
     );
     fcs.output_mut().linear_mut().set_y(
-        assist_output.linear().y() * (accel_proportion.linear().y() * max_accel.linear().y())
+        assist_output.linear().y() * (thrust_proportion.linear().y() * max_thrust.linear().y())
     );
     fcs.output_mut().linear_mut().set_z(
-        assist_output.linear().z() * (accel_proportion.linear().z() * max_accel.linear().z())
+        assist_output.linear().z() * (thrust_proportion.linear().z() * max_thrust.linear().z())
     );
 
     fcs.output_mut().rotational_mut().set_x(
-        assist_output.rotational().x() * (accel_proportion.rotational().x() * max_accel.rotational().x())
+        assist_output.rotational().x() * (thrust_proportion.rotational().x() * max_thrust.rotational().x())
     );
     fcs.output_mut().rotational_mut().set_y(
-        assist_output.rotational().y() * (accel_proportion.rotational().y() * max_accel.rotational().y())
+        assist_output.rotational().y() * (thrust_proportion.rotational().y() * max_thrust.rotational().y())
     );
     fcs.output_mut().rotational_mut().set_z(
-        assist_output.rotational().z() * (accel_proportion.rotational().z() * max_accel.rotational().z())
+        assist_output.rotational().z() * (thrust_proportion.rotational().z() * max_thrust.rotational().z())
     );
     
     // gravity and drag compensation might be combinable if our compensation logic is purely current position/orientation
     // vs expected position/orientation
+
     // if gravity compensation enabled{}
     
     // if drag compensation enabled{}
     
     // if anti-skid enabled{}
 
+    // this needs to be fixed...
     if gsafety.enabled(){
-        if fcs.output().linear().x() > gsafety.linear().x(){
-            fcs.output_mut().linear_mut().set_x(gsafety.linear().x())
+        if acceleration.linear().x() > gsafety.linear().x(){
+            fcs.output_mut().linear_mut().set_x(zero_value);
         }
-        if fcs.output().linear().y() > gsafety.linear().y(){
-            fcs.output_mut().linear_mut().set_y(gsafety.linear().y())
+        if acceleration.linear().y() > gsafety.linear().y(){
+            fcs.output_mut().linear_mut().set_y(zero_value);
         }
-        if fcs.output().linear().z() > gsafety.linear().z(){
-            fcs.output_mut().linear_mut().set_z(gsafety.linear().z())
+        if acceleration.linear().z() > gsafety.linear().z(){
+            fcs.output_mut().linear_mut().set_z(zero_value);
         }
 
-        if fcs.output().rotational().x() > gsafety.rotational().x(){
-            fcs.output_mut().rotational_mut().set_x(gsafety.rotational().x())
+        if acceleration.rotational().x() > gsafety.rotational().x(){
+            fcs.output_mut().rotational_mut().set_x(zero_value);
         }
-        if fcs.output().rotational().y() > gsafety.rotational().y(){
-            fcs.output_mut().rotational_mut().set_y(gsafety.rotational().y())
+        if acceleration.rotational().y() > gsafety.rotational().y(){
+            fcs.output_mut().rotational_mut().set_y(zero_value);
         }
-        if fcs.output().rotational().z() > gsafety.rotational().z(){
-            fcs.output_mut().rotational_mut().set_z(gsafety.rotational().z())
+        if acceleration.rotational().z() > gsafety.rotational().z(){
+            fcs.output_mut().rotational_mut().set_z(zero_value);
         }
     }
 }
