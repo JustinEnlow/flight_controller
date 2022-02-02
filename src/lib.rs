@@ -35,7 +35,6 @@ use components::*;
 use pid_controller::PID;
 use clamp::*;
 use accelerometer::Acceleration;
-use propulsion_control::MaxAvailableThrust;
 
 pub mod components;
 
@@ -46,7 +45,6 @@ pub fn flight_control_system<T>(
     max_velocity: &MaxVelocity<T>,
     acceleration: &Acceleration<T>,
     thrust_proportion: &DesiredThrustProportion<T>,
-    max_thrust: &MaxAvailableThrust<T>,
     linear_assist: &LinearAssist,
     rotational_assist: &RotationalAssist,
     gsafety: &GForceSafety<T>,
@@ -55,7 +53,7 @@ pub fn flight_control_system<T>(
     assist_output: &mut AssistOutput<T>,
     delta_time: T,
     clamp_value: T,
-    zero_value: T,
+    zero: T,
 )
     where
         T: Mul<Output = T>
@@ -88,13 +86,13 @@ pub fn flight_control_system<T>(
         }
         else{
             assist_output.linear_mut().set_x(
-                assist_off(velocity.linear().x(), max_velocity.linear().x(), fcs.input().linear().x(), zero_value)
+                assist_off(velocity.linear().x(), max_velocity.linear().x(), fcs.input().linear().x(), zero)
             );
             assist_output.linear_mut().set_y(
-                assist_off(velocity.linear().y(), max_velocity.linear().y(), fcs.input().linear().y(), zero_value)
+                assist_off(velocity.linear().y(), max_velocity.linear().y(), fcs.input().linear().y(), zero)
             );
             assist_output.linear_mut().set_z(
-                assist_off(velocity.linear().z(), max_velocity.linear().z(), fcs.input().linear().z(), zero_value)
+                assist_off(velocity.linear().z(), max_velocity.linear().z(), fcs.input().linear().z(), zero)
             );
         }
         if rotational_assist.enabled(){
@@ -114,38 +112,39 @@ pub fn flight_control_system<T>(
         else{
             assist_output.rotational_mut().set_x(
                 assist_off(velocity.rotational().x(), max_velocity.rotational().x(), fcs.input().rotational().x(), 
-                zero_value)
+                zero)
             );
             assist_output.rotational_mut().set_y(
                 assist_off(velocity.rotational().y(), max_velocity.rotational().y(), fcs.input().rotational().y(), 
-                zero_value)
+                zero)
             );
             assist_output.rotational_mut().set_z(
                 assist_off(velocity.rotational().z(), max_velocity.rotational().z(), fcs.input().rotational().z(), 
-                zero_value)
+                zero)
             );
         }
     }
 
-    //fcs output as accelerations
+    //fcs output
+    //propulsion control system can determine how to use this output and what to scale it by(max accel/max thrust/etc.)
     fcs.output_mut().linear_mut().set_x(
-        assist_output.linear().x() * (thrust_proportion.linear().x() * max_thrust.linear().x())
+        assist_output.linear().x() * thrust_proportion.linear().x()
     );
     fcs.output_mut().linear_mut().set_y(
-        assist_output.linear().y() * (thrust_proportion.linear().y() * max_thrust.linear().y())
+        assist_output.linear().y() * thrust_proportion.linear().y()
     );
     fcs.output_mut().linear_mut().set_z(
-        assist_output.linear().z() * (thrust_proportion.linear().z() * max_thrust.linear().z())
+        assist_output.linear().z() * thrust_proportion.linear().z()
     );
 
     fcs.output_mut().rotational_mut().set_x(
-        assist_output.rotational().x() * (thrust_proportion.rotational().x() * max_thrust.rotational().x())
+        assist_output.rotational().x() * thrust_proportion.rotational().x()
     );
     fcs.output_mut().rotational_mut().set_y(
-        assist_output.rotational().y() * (thrust_proportion.rotational().y() * max_thrust.rotational().y())
+        assist_output.rotational().y() * thrust_proportion.rotational().y()
     );
     fcs.output_mut().rotational_mut().set_z(
-        assist_output.rotational().z() * (thrust_proportion.rotational().z() * max_thrust.rotational().z())
+        assist_output.rotational().z() * thrust_proportion.rotational().z()
     );
     
     // gravity and drag compensation might be combinable if our compensation logic is purely current position/orientation
@@ -157,26 +156,25 @@ pub fn flight_control_system<T>(
     
     // if anti-skid enabled{}
 
-    // this needs to be fixed...
-    if gsafety.enabled(){
+    if gsafety.enabled(){   //do accelerations in the negative need to be limited?
         if acceleration.linear().x() > gsafety.linear().x(){
-            fcs.output_mut().linear_mut().set_x(zero_value);
+            fcs.output_mut().linear_mut().set_x(zero);
         }
         if acceleration.linear().y() > gsafety.linear().y(){
-            fcs.output_mut().linear_mut().set_y(zero_value);
+            fcs.output_mut().linear_mut().set_y(zero);
         }
         if acceleration.linear().z() > gsafety.linear().z(){
-            fcs.output_mut().linear_mut().set_z(zero_value);
+            fcs.output_mut().linear_mut().set_z(zero);
         }
 
         if acceleration.rotational().x() > gsafety.rotational().x(){
-            fcs.output_mut().rotational_mut().set_x(zero_value);
+            fcs.output_mut().rotational_mut().set_x(zero);
         }
         if acceleration.rotational().y() > gsafety.rotational().y(){
-            fcs.output_mut().rotational_mut().set_y(zero_value);
+            fcs.output_mut().rotational_mut().set_y(zero);
         }
         if acceleration.rotational().z() > gsafety.rotational().z(){
-            fcs.output_mut().rotational_mut().set_z(zero_value);
+            fcs.output_mut().rotational_mut().set_z(zero);
         }
     }
 }

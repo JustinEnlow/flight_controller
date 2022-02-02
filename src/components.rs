@@ -189,45 +189,10 @@ impl<T> Velocity<T>
 
 
 
-/// maximum thrust that a control axis can produce, given the sum of forces for all propulsion devices on that axis.
-/// this should be calculated, not directly assigned.
-//#[derive(Clone, Copy)]
-//pub struct MaxAvailableThrust<T>{
-//    linear: Dimension3<T>,
-//    rotational: Dimension3<T>,
-//}
-//impl<T> MaxAvailableThrust<T>
-//    where T: Copy
-//{
-//    pub fn new(zero: T) -> Self{
-//        Self{
-//            linear: Dimension3::new(zero, zero, zero),//{x: zero, y: zero, z: zero},
-//            rotational: Dimension3::new(zero, zero, zero),//{x: zero, y: zero, z: zero}
-//        }
-//    }
-//    
-//    //pub fn linear(self: &Self) -> Dimension3<T>{self.linear}
-//    pub fn linear/*_ref*/(self: &Self) -> &Dimension3<T>{&self.linear}
-//    pub fn linear_mut(self: &mut Self) -> &mut Dimension3<T>{&mut self.linear}
-//    
-//    //pub fn rotational(self: &Self) -> Dimension3<T>{self.rotational}
-//    pub fn rotational/*_ref*/(self: &Self) -> &Dimension3<T>{&self.rotational}
-//    pub fn rotational_mut(self: &mut Self) -> &mut Dimension3<T>{&mut self.rotational}
-//}
-
-
-
 /// interpereted as a percentage of max available acceleration, allowing the pilot to limit max acceleration as desired.
 /// low proportion here, and high max velocity, allows craft to slowly achieve a high velocity.
 /// high proportion here, and low max velocity, allows craft to quickly achieve a low velocity.
 /// both are valid flight profiles for different contexts.
-/// 
-/// ex: 
-/// ```
-/// let mut accel_proportion = DesiredAccelerationProportion::new(1.0, 0.0);
-/// accel_proportion.linear_mut().set_x(2.0);
-/// println!("{}", accel_proportion.linear().x());
-/// ```
 pub struct DesiredThrustProportion<T>{
     linear: ClampedDimension3<T>,
     rotational: ClampedDimension3<T>,

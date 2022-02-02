@@ -10,4 +10,4 @@ pid_controller = {git = "https://github.com/JustinEnlow/pid_controller"} # {path
 clamp = {git = "https://github.com/JustinEnlow/clamp"}
 accelerometer = {git = "https://github.com/JustinEnlow/accelerometer"}
 dimension3 = {git = "https://github.com/JustinEnlow/dimension3"}
-propulsion_control = {git = "https://github.com/JustinEnlow/propulsion_control"}
+# propulsion_control = {git = "https://github.com/JustinEnlow/propulsion_control"}
