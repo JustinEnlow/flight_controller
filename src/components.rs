@@ -1,5 +1,5 @@
 use pid_controller::PID;
-use dimension3::{ClampedDimension3, Dimension3};
+use dimension3::{ClampedDimension3, Dimension3, MaxDimension3, MinDimension3};
 use std::ops::Neg;
 
 
@@ -73,21 +73,26 @@ impl<T> AssistOutput<T>
 
 /// Holds the state of gforce safety system.
 /// the system limits g forces experienced by the pilot, if enabled.
-/// represents max allowable g forces, as assigned by the pilot, for each control axis.
+/// represents max allowable g forces, as assigned by the pilot, positive and negative on each control axis.
 #[derive(Clone, Copy)]
 pub struct GForceSafety<T>{
     enabled: bool,
-    linear: Dimension3<T>,
-    rotational: Dimension3<T>,
+    linear: MinDimension3<T>,
+    rotational: MinDimension3<T>,
+    neg_linear: MaxDimension3<T>,
+    neg_rotational: MaxDimension3<T>,
 }
 impl<T> GForceSafety<T>
     where T: Copy
+    + PartialOrd
 {
     pub fn new(zero: T) -> Self{
         Self{
             enabled: true,
-            linear: Dimension3::new(zero, zero, zero),
-            rotational: Dimension3::new(zero, zero, zero)
+            linear: MinDimension3::new(zero, zero, zero, zero),  //might switch to clampedDimension3, so values dont go too low on positive limit, or too
+            rotational: MinDimension3::new(zero, zero, zero, zero),  //high on negative limit.
+            neg_linear: MaxDimension3::new(zero, zero, zero, zero),
+            neg_rotational: MaxDimension3::new(zero, zero, zero, zero),
         }
     }
     
@@ -95,12 +100,18 @@ impl<T> GForceSafety<T>
     pub fn toggle(self: &mut Self){self.enabled = !self.enabled}
     
     //pub fn linear(self: &Self) -> Dimension3<T>{self.linear}
-    pub fn linear/*_ref*/(self: &Self) -> &Dimension3<T>{&self.linear}
-    pub fn linear_mut(self: &mut Self) -> &mut Dimension3<T>{&mut self.linear}
+    pub fn linear/*_ref*/(self: &Self) -> &MinDimension3<T>{&self.linear}
+    pub fn linear_mut(self: &mut Self) -> &mut MinDimension3<T>{&mut self.linear}
     
     //pub fn rotational(self: &Self) -> Dimension3<T>{self.rotational}
-    pub fn rotational/*_ref*/(self: &Self) -> &Dimension3<T>{&self.rotational}
-    pub fn rotational_mut(self: &mut Self) -> &mut Dimension3<T>{&mut self.rotational}
+    pub fn rotational/*_ref*/(self: &Self) -> &MinDimension3<T>{&self.rotational}
+    pub fn rotational_mut(self: &mut Self) -> &mut MinDimension3<T>{&mut self.rotational}
+
+    pub fn neg_linear(self: &Self) -> &MaxDimension3<T>{&self.neg_linear}
+    pub fn neg_linear_mut(self: &mut Self) -> &MaxDimension3<T>{&mut self.neg_linear}
+
+    pub fn neg_rotational(self: &Self) -> &MaxDimension3<T>{&self.neg_rotational}
+    pub fn neg_rotational_mut(self: &mut Self) -> &MaxDimension3<T>{&mut self.neg_rotational}
 }
 
 

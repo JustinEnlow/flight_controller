@@ -157,23 +157,23 @@ pub fn flight_control_system<T>(
     // if anti-skid enabled{}
 
     if gsafety.enabled(){   //do accelerations in the negative need to be limited?
-        if acceleration.linear().x() > gsafety.linear().x(){
+        if acceleration.linear().x() > gsafety.linear().x() || acceleration.linear().x() < gsafety.neg_linear().x(){
             fcs.output_mut().linear_mut().set_x(zero);
         }
-        if acceleration.linear().y() > gsafety.linear().y(){
+        if acceleration.linear().y() > gsafety.linear().y() || acceleration.linear().y() < gsafety.neg_linear().y(){
             fcs.output_mut().linear_mut().set_y(zero);
         }
-        if acceleration.linear().z() > gsafety.linear().z(){
+        if acceleration.linear().z() > gsafety.linear().z() || acceleration.linear().z() < gsafety.neg_linear().z(){
             fcs.output_mut().linear_mut().set_z(zero);
         }
 
-        if acceleration.rotational().x() > gsafety.rotational().x(){
+        if acceleration.rotational().x() > gsafety.rotational().x() || acceleration.rotational().x() < gsafety.neg_rotational().x(){
             fcs.output_mut().rotational_mut().set_x(zero);
         }
-        if acceleration.rotational().y() > gsafety.rotational().y(){
+        if acceleration.rotational().y() > gsafety.rotational().y() || acceleration.rotational().y() < gsafety.neg_rotational().y(){
             fcs.output_mut().rotational_mut().set_y(zero);
         }
-        if acceleration.rotational().z() > gsafety.rotational().z(){
+        if acceleration.rotational().z() > gsafety.rotational().z() || acceleration.rotational().z() < gsafety.neg_rotational().z(){
             fcs.output_mut().rotational_mut().set_z(zero);
         }
     }
