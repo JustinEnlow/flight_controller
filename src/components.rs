@@ -204,11 +204,11 @@ impl<T> Velocity<T>
 /// low proportion here, and high max velocity, allows craft to slowly achieve a high velocity.
 /// high proportion here, and low max velocity, allows craft to quickly achieve a low velocity.
 /// both are valid flight profiles for different contexts.
-pub struct DesiredThrustProportion<T>{
+pub struct OutputProportion<T>{
     linear: ClampedDimension3<T>,
     rotational: ClampedDimension3<T>,
 }
-impl<T> DesiredThrustProportion<T>
+impl<T> OutputProportion<T>
     where
         T: PartialOrd
         + Neg<Output = T>

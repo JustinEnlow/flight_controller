@@ -44,7 +44,7 @@ pub fn flight_control_system<T>(
     velocity: &Velocity<T>,
     max_velocity: &MaxVelocity<T>,
     acceleration: &Acceleration<T>,
-    thrust_proportion: &DesiredThrustProportion<T>,
+    output_proportion: &OutputProportion<T>,
     linear_assist: &LinearAssist,
     rotational_assist: &RotationalAssist,
     gsafety: &GForceSafety<T>,
@@ -111,16 +111,13 @@ pub fn flight_control_system<T>(
         }
         else{
             assist_output.rotational_mut().set_x(
-                assist_off(velocity.rotational().x(), max_velocity.rotational().x(), fcs.input().rotational().x(), 
-                zero)
+                assist_off(velocity.rotational().x(), max_velocity.rotational().x(), fcs.input().rotational().x(), zero)
             );
             assist_output.rotational_mut().set_y(
-                assist_off(velocity.rotational().y(), max_velocity.rotational().y(), fcs.input().rotational().y(), 
-                zero)
+                assist_off(velocity.rotational().y(), max_velocity.rotational().y(), fcs.input().rotational().y(), zero)
             );
             assist_output.rotational_mut().set_z(
-                assist_off(velocity.rotational().z(), max_velocity.rotational().z(), fcs.input().rotational().z(), 
-                zero)
+                assist_off(velocity.rotational().z(), max_velocity.rotational().z(), fcs.input().rotational().z(), zero)
             );
         }
     }
@@ -128,23 +125,23 @@ pub fn flight_control_system<T>(
     //fcs output
     //propulsion control system can determine how to use this output and what to scale it by(max accel/max thrust/etc.)
     fcs.output_mut().linear_mut().set_x(
-        assist_output.linear().x() * thrust_proportion.linear().x()
+        assist_output.linear().x() * output_proportion.linear().x()
     );
     fcs.output_mut().linear_mut().set_y(
-        assist_output.linear().y() * thrust_proportion.linear().y()
+        assist_output.linear().y() * output_proportion.linear().y()
     );
     fcs.output_mut().linear_mut().set_z(
-        assist_output.linear().z() * thrust_proportion.linear().z()
+        assist_output.linear().z() * output_proportion.linear().z()
     );
 
     fcs.output_mut().rotational_mut().set_x(
-        assist_output.rotational().x() * thrust_proportion.rotational().x()
+        assist_output.rotational().x() * output_proportion.rotational().x()
     );
     fcs.output_mut().rotational_mut().set_y(
-        assist_output.rotational().y() * thrust_proportion.rotational().y()
+        assist_output.rotational().y() * output_proportion.rotational().y()
     );
     fcs.output_mut().rotational_mut().set_z(
-        assist_output.rotational().z() * thrust_proportion.rotational().z()
+        assist_output.rotational().z() * output_proportion.rotational().z()
     );
     
     // gravity and drag compensation might be combinable if our compensation logic is purely current position/orientation
