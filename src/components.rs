@@ -77,9 +77,9 @@ impl<T> AssistOutput<T>
 #[derive(Clone, Copy)]
 pub struct GForceSafety<T>{
     enabled: bool,
-    linear: MinDimension3<T>,
+    linear: MinDimension3<T>, // MinDimension ensures we don't have values below some minimum value
     rotational: MinDimension3<T>,
-    neg_linear: MaxDimension3<T>,
+    neg_linear: MaxDimension3<T>, // MaxDimension ensures we don't have values above some maximum value
     neg_rotational: MaxDimension3<T>,
 }
 impl<T> GForceSafety<T>
@@ -89,8 +89,8 @@ impl<T> GForceSafety<T>
     pub fn new(zero: T) -> Self{
         Self{
             enabled: true,
-            linear: MinDimension3::new(zero, zero, zero, zero),  //might switch to clampedDimension3, so values dont go too low on positive limit, or too
-            rotational: MinDimension3::new(zero, zero, zero, zero),  //high on negative limit.
+            linear: MinDimension3::new(zero, zero, zero, zero),
+            rotational: MinDimension3::new(zero, zero, zero, zero),
             neg_linear: MaxDimension3::new(zero, zero, zero, zero),
             neg_rotational: MaxDimension3::new(zero, zero, zero, zero),
         }
@@ -163,32 +163,6 @@ impl<T> MaxVelocity<T>
         }
     }
     
-    //pub fn linear(self: &Self) -> Dimension3<T>{self.linear}
-    pub fn linear/*_ref*/(self: &Self) -> &Dimension3<T>{&self.linear}
-    pub fn linear_mut(self: &mut Self) -> &mut Dimension3<T>{&mut self.linear}
-    
-    //pub fn rotational(self: &Self) -> Dimension3<T>{self.rotational}
-    pub fn rotational/*_ref*/(self: &Self) -> &Dimension3<T>{&self.rotational}
-    pub fn rotational_mut(self: &mut Self) -> &mut Dimension3<T>{&mut self.rotational}
-}
-
-
-
-/// the current velocity being experienced by a system. these values should not be assigned directly by the user or developer.
-pub struct Velocity<T>{
-    linear: Dimension3<T>,
-    rotational: Dimension3<T>,
-}
-impl<T> Velocity<T>
-    where T: Copy
-{
-    pub fn new(zero: T) -> Self{
-        Self{
-            linear: Dimension3::new(zero, zero, zero),
-            rotational: Dimension3::new(zero, zero, zero)
-        }
-    }
-
     //pub fn linear(self: &Self) -> Dimension3<T>{self.linear}
     pub fn linear/*_ref*/(self: &Self) -> &Dimension3<T>{&self.linear}
     pub fn linear_mut(self: &mut Self) -> &mut Dimension3<T>{&mut self.linear}
