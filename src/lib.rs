@@ -46,12 +46,12 @@ use gforce_safety::{self, GForceSafety};
 
 pub fn execute<T>(
     power: &Toggle,
-    imu: &IMU<T>,
+    imu: &IMU<ControlAxis<Dimension3<T>>>,
     max_velocity: &ControlAxis<Dimension3<T>>,
     output_proportion: &ControlAxis<ClampedDimension3<T>>,
     linear_assist: &Toggle,
     rotational_assist: &Toggle,
-    gsafety: &GForceSafety<T>,
+    gsafety: &GForceSafety<ClampedDimension3<T>>,
     fcs_output: &mut ControlAxis<Dimension3<T>>,
     input: &ControlAxis<Dimension3<T>>,
     pid6dof: &ControlAxis<Dimension3<PID<T>>>,
@@ -107,7 +107,7 @@ pub fn execute<T>(
         
     gforce_safety::execute(
         gsafety, 
-        imu, 
+        imu.acceleration(), 
         fcs_output, 
         zero
     );
@@ -152,7 +152,8 @@ pub fn process_fcs_output<T>(
 
 
 
-
+///////////////////////////////////////// WARNING: really outdated /////////////////////////////////////////////////
+//
 // interpereted as a percentage of max available acceleration, allowing the pilot to limit max acceleration as desired.
 // low proportion here, and high max velocity, allows craft to slowly achieve a high velocity.
 // high proportion here, and low max velocity, allows craft to quickly achieve a low velocity.
