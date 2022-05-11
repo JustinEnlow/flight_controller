@@ -31,28 +31,34 @@
 
 use std::ops::{Mul, Div, Add, Sub, Neg};
 use std::cmp::PartialOrd;
-use components::*;
 use pid_controller::PID;
-use clamp::*;
+use flight_assist;
 use inertial_measurement::IMU;
+use game_utils::{control_axis::ControlAxis, toggle::Toggle, dimension3::{Dimension3, ClampedDimension3}};
+use gforce_safety::{self, GForceSafety};
 
-pub mod components;
+
+
+// this crate probably isnt necessary for bevy ecs. we can just chain the individual systems together.
+// flight_assist -> fcs_output -> gforce_safety     //gravity/drag/skid compensation will be in that chain somewhere...
 
 
 
-pub fn flight_control_system<T>(
+pub fn execute<T>(
+    power: &Toggle,
     imu: &IMU<T>,
-    max_velocity: &MaxVelocity<T>,
-    output_proportion: &OutputProportion<T>,
-    linear_assist: &LinearAssist,
-    rotational_assist: &RotationalAssist,
+    max_velocity: &ControlAxis<Dimension3<T>>,
+    output_proportion: &ControlAxis<ClampedDimension3<T>>,
+    linear_assist: &Toggle,
+    rotational_assist: &Toggle,
     gsafety: &GForceSafety<T>,
-    fcs: &mut FlightControlSystem<T>,
-    pid3d: &mut PID3d<T>,
-    assist_output: &mut AssistOutput<T>,
+    fcs_output: &mut ControlAxis<Dimension3<T>>,
+    input: &ControlAxis<Dimension3<T>>,
+    pid6dof: &ControlAxis<Dimension3<PID<T>>>,
+    assist_output: &mut ControlAxis<Dimension3<T>>,
     delta_time: T,
-    clamp_value: T,
-    zero: T,
+    clamp_value: T, //used in flight assist to clamp pid output between -1.0 and 1.0
+    zero: T, //to initialize structs with 0.0
 )
     where
         T: Mul<Output = T>
@@ -63,88 +69,34 @@ pub fn flight_control_system<T>(
         + PartialOrd 
         + Copy
 {
-    // if autonomous positioning mode{use 3dpid to go from current position/orientation to desired position/orientation}
-    // might need to add some object avoidance logic
-    if false/*autonomous_mode.enabled()*/{
+    if power.enabled() == false{return;}
 
-    }
-    else{
-        if linear_assist.enabled(){
-            assist_output.linear_mut().set_x(   // linear() returns a copy. I think we need linear_mut(), but should verify
-                assist_on(&mut pid3d.linear().x(), max_velocity.linear().x(), imu.velocity().linear().x(), 
-                fcs.input().linear().x(), delta_time, clamp_value)
-            );
-            assist_output.linear_mut().set_y(
-                assist_on(&mut pid3d.linear().y(), max_velocity.linear().y(), imu.velocity().linear().y(), 
-                fcs.input().linear().y(), delta_time, clamp_value)
-            );
-            assist_output.linear_mut().set_z(
-                assist_on(&mut pid3d.linear().z(), max_velocity.linear().z(), imu.velocity().linear().z(), 
-                fcs.input().linear().z(), delta_time, clamp_value)
-            );
-        }
-        else{
-            assist_output.linear_mut().set_x(
-                assist_off(imu.velocity().linear().x(), max_velocity.linear().x(), fcs.input().linear().x(), zero)
-            );
-            assist_output.linear_mut().set_y(
-                assist_off(imu.velocity().linear().y(), max_velocity.linear().y(), fcs.input().linear().y(), zero)
-            );
-            assist_output.linear_mut().set_z(
-                assist_off(imu.velocity().linear().z(), max_velocity.linear().z(), fcs.input().linear().z(), zero)
-            );
-        }
-        if rotational_assist.enabled(){
-            assist_output.rotational_mut().set_x(
-                assist_on(&mut pid3d.rotational().x(), max_velocity.rotational().x(), imu.velocity().rotational().x(), 
-                fcs.input().rotational().x(), delta_time, clamp_value)
-            );
-            assist_output.rotational_mut().set_y(
-                assist_on(&mut pid3d.rotational().y(), max_velocity.rotational().y(), imu.velocity().rotational().y(), 
-                fcs.input().rotational().y(), delta_time, clamp_value)
-            );
-            assist_output.rotational_mut().set_z(
-                assist_on(&mut pid3d.rotational().z(), max_velocity.rotational().z(), imu.velocity().rotational().z(), 
-                fcs.input().rotational().z(), delta_time, clamp_value)
-            );
-        }
-        else{
-            assist_output.rotational_mut().set_x(
-                assist_off(imu.velocity().rotational().x(), max_velocity.rotational().x(), fcs.input().rotational().x(), zero)
-            );
-            assist_output.rotational_mut().set_y(
-                assist_off(imu.velocity().rotational().y(), max_velocity.rotational().y(), fcs.input().rotational().y(), zero)
-            );
-            assist_output.rotational_mut().set_z(
-                assist_off(imu.velocity().rotational().z(), max_velocity.rotational().z(), fcs.input().rotational().z(), zero)
-            );
-        }
-    }
+    flight_assist::execute(
+        linear_assist, 
+        rotational_assist,
+        pid6dof,
+        max_velocity,
+        imu.velocity(),
+        input,
+        assist_output,
+        delta_time,
+        clamp_value,
+        zero
+    );
 
     //fcs output
     //propulsion control system can determine how to use this output and what to scale it by(max accel/max thrust/etc.)
-    fcs.output_mut().linear_mut().set_x(
-        assist_output.linear().x() * output_proportion.linear().x()
-    );
-    fcs.output_mut().linear_mut().set_y(
-        assist_output.linear().y() * output_proportion.linear().y()
-    );
-    fcs.output_mut().linear_mut().set_z(
-        assist_output.linear().z() * output_proportion.linear().z()
-    );
-
-    fcs.output_mut().rotational_mut().set_x(
-        assist_output.rotational().x() * output_proportion.rotational().x()
-    );
-    fcs.output_mut().rotational_mut().set_y(
-        assist_output.rotational().y() * output_proportion.rotational().y()
-    );
-    fcs.output_mut().rotational_mut().set_z(
-        assist_output.rotational().z() * output_proportion.rotational().z()
+    process_fcs_output(
+        fcs_output, 
+        assist_output, 
+        output_proportion
     );
     
     // gravity and drag compensation might be combinable if our compensation logic is purely current position/orientation
     // vs expected position/orientation
+
+    // get difference in expected velocity/acceleration by comparing physics engine derived actual velocity/acceleration with 
+    // the sum of all forces from the propulsion control system. this output can either be stored in the PCU or in the IMU
 
     // if gravity compensation enabled{}
     
@@ -152,40 +104,81 @@ pub fn flight_control_system<T>(
     
     // if anti-skid enabled{}
 
-    if gsafety.enabled(){   //do accelerations in the negative need to be limited?
-        if imu.acceleration().linear().x() > gsafety.linear().x() || imu.acceleration().linear().x() < gsafety.neg_linear().x(){
-            fcs.output_mut().linear_mut().set_x(zero);
-        }
-        if imu.acceleration().linear().y() > gsafety.linear().y() || imu.acceleration().linear().y() < gsafety.neg_linear().y(){
-            fcs.output_mut().linear_mut().set_y(zero);
-        }
-        if imu.acceleration().linear().z() > gsafety.linear().z() || imu.acceleration().linear().z() < gsafety.neg_linear().z(){
-            fcs.output_mut().linear_mut().set_z(zero);
-        }
-
-        if imu.acceleration().rotational().x() > gsafety.rotational().x() || imu.acceleration().rotational().x() < gsafety.neg_rotational().x(){
-            fcs.output_mut().rotational_mut().set_x(zero);
-        }
-        if imu.acceleration().rotational().y() > gsafety.rotational().y() || imu.acceleration().rotational().y() < gsafety.neg_rotational().y(){
-            fcs.output_mut().rotational_mut().set_y(zero);
-        }
-        if imu.acceleration().rotational().z() > gsafety.rotational().z() || imu.acceleration().rotational().z() < gsafety.neg_rotational().z(){
-            fcs.output_mut().rotational_mut().set_z(zero);
-        }
-    }
+        
+    gforce_safety::execute(
+        gsafety, 
+        imu, 
+        fcs_output, 
+        zero
+    );
 }
 
-fn assist_on<T>(pid: &mut PID<T>, max_velocity: T, current_velocity: T, input: T, delta_time: T, clamp_value: T) -> T
-    where T: Mul<Output = T> + Div<Output = T> + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + PartialOrd + Copy
+
+
+pub fn process_fcs_output<T>(
+    fcs_output: &mut ControlAxis<Dimension3<T>>, 
+    assist_output: &ControlAxis<Dimension3<T>>, 
+    output_proportion: &ControlAxis<ClampedDimension3<T>>
+)
+    where T: Mul<Output = T>
+    + Div<Output = T>
+    + Add<Output = T>
+    + Sub<Output = T>
+    + Neg<Output = T>
+    + PartialOrd 
+    + Copy
 {
-    pid.calculate(max_velocity * input, current_velocity, delta_time);
-    clamp(pid.output().unwrap() / max_velocity, clamp_value)
+    fcs_output.linear_mut().set_x(
+        assist_output.linear().x() * output_proportion.linear().x()
+    );
+    fcs_output.linear_mut().set_y(
+        assist_output.linear().y() * output_proportion.linear().y()
+    );
+    fcs_output.linear_mut().set_z(
+        assist_output.linear().z() * output_proportion.linear().z()
+    );
+
+    fcs_output.rotational_mut().set_x(
+        assist_output.rotational().x() * output_proportion.rotational().x()
+    );
+    fcs_output.rotational_mut().set_y(
+        assist_output.rotational().y() * output_proportion.rotational().y()
+    );
+    fcs_output.rotational_mut().set_z(
+        assist_output.rotational().z() * output_proportion.rotational().z()
+    );
 }
 
-fn assist_off<T>(current_velocity: T, max_velocity: T, input: T, zero_value: T) -> T
-    where T: Mul<Output = T> + Div<Output = T> + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + PartialOrd + Copy
-{
-    if current_velocity >= max_velocity && input > zero_value{zero_value}
-    else if current_velocity <= -max_velocity && input < zero_value{zero_value}
-    else{input}
-}
+
+
+
+
+// interpereted as a percentage of max available acceleration, allowing the pilot to limit max acceleration as desired.
+// low proportion here, and high max velocity, allows craft to slowly achieve a high velocity.
+// high proportion here, and low max velocity, allows craft to quickly achieve a low velocity.
+// both are valid flight profiles for different contexts.
+//pub struct OutputProportion<T>{
+//    linear: ClampedDimension3<T>,
+//    rotational: ClampedDimension3<T>,
+//}
+//impl<T> OutputProportion<T>
+//    where
+//        T: PartialOrd
+//        + Neg<Output = T>
+//        + Copy
+//{
+//    pub fn new(one: T, zero: T) -> Self{
+//        Self{
+//            linear: ClampedDimension3::new(zero, zero, zero, one, zero),
+//            rotational: ClampedDimension3::new(zero, zero, zero, one, zero),
+//        }
+//    }
+//    
+//    //pub fn linear(self: &Self) -> ClampedDimension3<T>{self.linear}
+//    pub fn linear/*_ref*/(self: &Self) -> &ClampedDimension3<T>{&self.linear}
+//    pub fn linear_mut(self: &mut Self) -> &mut ClampedDimension3<T>{&mut self.linear}
+//    
+//    //pub fn rotational(self: &Self) -> ClampedDimension3<T>{self.rotational}
+//    pub fn rotational/*_ref*/(self: &Self) -> &ClampedDimension3<T>{&self.rotational}
+//    pub fn rotational_mut(self: &mut Self) -> &mut ClampedDimension3<T>{&mut self.rotational}
+//}

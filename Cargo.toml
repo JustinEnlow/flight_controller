@@ -6,8 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-pid_controller = {git = "https://github.com/JustinEnlow/pid_controller"} # {path = "../pid_controller"}
-clamp = {git = "https://github.com/JustinEnlow/clamp"}
+pid_controller = {path = "../pid_controller"} #{git = "https://github.com/JustinEnlow/pid_controller"}
 inertial_measurement = {path = "../inertial_measurement"}
-dimension3 = {git = "https://github.com/JustinEnlow/dimension3"}
 # propulsion_control = {git = "https://github.com/JustinEnlow/propulsion_control"}
+flight_assist = {path = "../flight_assist"}
+game_utils = {path = "../game_utils"}
+gforce_safety = {path = "../gforce_safety"}
