@@ -1,65 +1,43 @@
 //! # Flight Control System(FCS)
-//! keeps a vessel within specified flight parameters.
-//! 
-//! Several toggle-able modes may change the behaviour of the FCS.
-//! 
-//! # Autonomous mode 
-//! induces accelerations to bring vessel from current position/orientation to desired position/orientation
-//! 
-//! # Linear flight assist 
-//! restrains linear velocity, making the vessel easier to pilot. Without it, a pilot would need to manually 
-//! counter every application of thrust
-//! 
-//! when linear flight assist is disabled, pilot input directly controls linear acceleration. any motion induced will only
-//! be stopped by an equal and opposite application of thrust
-//! 
-//! # Rotational flight assist 
-//! restrains angular velocity, making the vessel easier to pilot. Without it, a pilot would need to manually 
-//! counter every application of thrust
-//! 
-//! when rotational flight assist is disabled, pilot input directly controls angular acceleration. any motion induced will only
-//! be stopped by an equal and opposite application of thrust
-//! 
-//! # g-force safety mode 
-//! when enabled, restricts fcs output accelerations to pilot specified limits, to reduce risk to biological life and equipment
-//! 
-//! # gravity compensation 
-//! applies an acceleration to counteract the effect of gravity
-//! 
-//! # drag compensation 
-//! applies an acceleration to counteract the effect of atmospheric drag
 
 use std::ops::{Mul, Div, Add, Sub, Neg};
 use std::cmp::PartialOrd;
-use pid_controller::PID;
-use flight_assist;
-use inertial_measurement::IMU;
-use game_utils::{control_axis::ControlAxis, toggle::Toggle, dimension3::{Dimension3, ClampedDimension3}};
-use gforce_safety::{self, GForceSafety};
+//use pid_controller::PID;
+use game_utils::{
+    control_axis::{ControlAxis, AxisContribution}, 
+    toggle::Toggle, 
+    dimension3::{Dimension3, ClampedDimension3}
+};
+//use propulsion_control::{ThrusterMountPoint, Thruster};
 
 
 
-// this crate probably isnt necessary for bevy ecs. we can just chain the individual systems together.
-// flight_assist -> fcs_output -> gforce_safety     //gravity/drag/skid compensation will be in that chain somewhere...
+pub mod feedback_controller;
+pub mod feedforward_controller;
+pub mod g_force_safety;
+pub mod propulsion_control;
 
 
 
-pub fn execute<T>(
-    power: &Toggle,
-    imu: &IMU<ControlAxis<Dimension3<T>>>,
+pub fn calculate<T>(
+    autonomous_mode: &Toggle,
+    //position: &ControlAxis<Dimension3<T>>,  //from positioning system
+    velocity: &ControlAxis<Dimension3<T>>,  //from IMU
     max_velocity: &ControlAxis<Dimension3<T>>,
-    output_proportion: &ControlAxis<ClampedDimension3<T>>,
     linear_assist: &Toggle,
     rotational_assist: &Toggle,
-    gsafety: &GForceSafety<ClampedDimension3<T>>,
-    fcs_output: &mut ControlAxis<Dimension3<T>>,
+    gsafety: &Toggle,
+    gsafety_max_acceleration: &AxisContribution<ControlAxis<ClampedDimension3<T>>>,
     input: &ControlAxis<Dimension3<T>>,
-    pid6dof: &ControlAxis<Dimension3<PID<T>>>,
-    assist_output: &mut ControlAxis<Dimension3<T>>,
+    //pid6dof: &mut ControlAxis<Dimension3<PID<T>>>,
     delta_time: T,
-    clamp_value: T, //used in flight assist to clamp pid output between -1.0 and 1.0
-    zero: T, //to initialize structs with 0.0
-)
+    //used to clamp pid output between -1.0 and 1.0
+    clamp_value: T,
+    //to initialize structs with 0.0,
+    zero: T,
+    // max accel determined by (physical max or user defined virtual max)thrust * mass, or by gsafety settings
+    available_acceleration: &AxisContribution<ControlAxis<Dimension3<T>>>,
+) -> ControlAxis<Dimension3<T>>
     where
         T: Mul<Output = T>
         + Div<Output = T>
@@ -69,117 +47,157 @@ pub fn execute<T>(
         + PartialOrd 
         + Copy
 {
-    if power.enabled() == false{return;}
+    //should we be requesting propulsion control to calculate available acceleration here, instead of feeding that value in?
 
-    flight_assist::execute(
-        linear_assist, 
-        rotational_assist,
-        pid6dof,
-        max_velocity,
-        imu.velocity(),
-        input,
-        assist_output,
-        delta_time,
-        clamp_value,
-        zero
+    let mut desired_acceleration = sum_desired_acceleration(
+        calculate_acceleration(
+            if autonomous_mode.enabled(){
+                ControlAxis::new(
+                    Dimension3::default(zero),
+                    Dimension3::default(zero)
+                )
+            }
+            else{
+                feedforward_controller::calculate(
+                    input,
+                    linear_assist, 
+                    rotational_assist,
+                    max_velocity,
+                    velocity,
+                    delta_time,
+                    clamp_value,
+                    zero,
+                )       
+            },
+            available_acceleration, 
+            zero
+        ),
+        calculate_acceleration(
+            //feedback_controller::calculate(
+            //    &goal_position,   //goal_position will be input if autonomous mode, or expected position/attitude as calculcated 
+                                    //by results of thruster output if in pilot controlled mode
+            //    position,
+            //    pid6dof,
+            //    delta_time
+            //)
+            ControlAxis::new(
+                Dimension3::default(zero),
+                Dimension3::default(zero)
+            ),
+            available_acceleration, 
+            zero
+        )
     );
 
-    //fcs output
-    //propulsion control system can determine how to use this output and what to scale it by(max accel/max thrust/etc.)
-    process_fcs_output(
-        fcs_output, 
-        assist_output, 
-        output_proportion
-    );
-    
-    // gravity and drag compensation might be combinable if our compensation logic is purely current position/orientation
-    // vs expected position/orientation
+    //G-force safety mode is an assistance mode intended to help pilots avoid injury or loss of
+    //consciousness from g-force during extreme maneuvers. It accomplishes this by limiting the
+    //amount of acceleration from thrusters to below a given threshold.
+    if gsafety.enabled(){
+        g_force_safety::process(
+            &mut desired_acceleration,
+            gsafety_max_acceleration
+        );
+    }
 
-    // get difference in expected velocity/acceleration by comparing physics engine derived actual velocity/acceleration with 
-    // the sum of all forces from the propulsion control system. this output can either be stored in the PCU or in the IMU
+    desired_acceleration
 
-    // if gravity compensation enabled{}
-    
-    // if drag compensation enabled{}
-    
-    // if anti-skid enabled{}
+    /////////////////////////////////////////////////////////////////////////////
+    // propulsion_control_system
+    /////////////////////////////////////////////////////////////////////////////
+    //Once the desired linear and rotational accelerations are established from the combined feedforward
+    //and feedback control signals, the PCS must calculate the output of individual thrusters, as well as other
+    //devices tasked with generating motion, so that these accelerations will be achieved to within a
+    //reasonable degree of accuracy.
+    //propulsion_control::calculate_thruster_output(
+    //    &desired_acceleration,
+    //    thruster_suite,
+    //    mass,
+    //    zero,
+    //    output_thrust
+    //);
 
-        
-    gforce_safety::execute(
-        gsafety, 
-        imu.acceleration(), 
-        fcs_output, 
-        zero
-    );
+    /////////////////////////////////////////////////////////////////////////////
+    // calculate expected position from resultant thrusts/accelerations/velocities
+    /////////////////////////////////////////////////////////////////////////////
 }
 
 
 
-pub fn process_fcs_output<T>(
-    fcs_output: &mut ControlAxis<Dimension3<T>>, 
-    assist_output: &ControlAxis<Dimension3<T>>, 
-    output_proportion: &ControlAxis<ClampedDimension3<T>>
-)
-    where T: Mul<Output = T>
-    + Div<Output = T>
-    + Add<Output = T>
-    + Sub<Output = T>
-    + Neg<Output = T>
-    + PartialOrd 
-    + Copy
+
+
+fn sum_desired_acceleration<T>(feedforward: ControlAxis<Dimension3<T>>, feedback: ControlAxis<Dimension3<T>>) -> ControlAxis<Dimension3<T>>
+    where
+        T: Copy + Add<Output = T>
 {
-    fcs_output.linear_mut().set_x(
-        assist_output.linear().x() * output_proportion.linear().x()
-    );
-    fcs_output.linear_mut().set_y(
-        assist_output.linear().y() * output_proportion.linear().y()
-    );
-    fcs_output.linear_mut().set_z(
-        assist_output.linear().z() * output_proportion.linear().z()
-    );
-
-    fcs_output.rotational_mut().set_x(
-        assist_output.rotational().x() * output_proportion.rotational().x()
-    );
-    fcs_output.rotational_mut().set_y(
-        assist_output.rotational().y() * output_proportion.rotational().y()
-    );
-    fcs_output.rotational_mut().set_z(
-        assist_output.rotational().z() * output_proportion.rotational().z()
-    );
+    ControlAxis::new(
+        Dimension3::new(
+            feedforward.linear().x() + feedback.linear().x(), 
+            feedforward.linear().y() + feedback.linear().y(), 
+            feedforward.linear().z() + feedback.linear().z(),
+        ), 
+        Dimension3::new(
+            feedforward.rotational().x() + feedback.rotational().x(), 
+            feedforward.rotational().y() + feedback.rotational().y(), 
+            feedforward.rotational().z() + feedback.rotational().z(),
+        ),
+    )
 }
 
-
-
-
-///////////////////////////////////////// WARNING: really outdated /////////////////////////////////////////////////
-//
-// interpereted as a percentage of max available acceleration, allowing the pilot to limit max acceleration as desired.
-// low proportion here, and high max velocity, allows craft to slowly achieve a high velocity.
-// high proportion here, and low max velocity, allows craft to quickly achieve a low velocity.
-// both are valid flight profiles for different contexts.
-//pub struct OutputProportion<T>{
-//    linear: ClampedDimension3<T>,
-//    rotational: ClampedDimension3<T>,
-//}
-//impl<T> OutputProportion<T>
-//    where
-//        T: PartialOrd
-//        + Neg<Output = T>
-//        + Copy
-//{
-//    pub fn new(one: T, zero: T) -> Self{
-//        Self{
-//            linear: ClampedDimension3::new(zero, zero, zero, one, zero),
-//            rotational: ClampedDimension3::new(zero, zero, zero, one, zero),
-//        }
-//    }
-//    
-//    //pub fn linear(self: &Self) -> ClampedDimension3<T>{self.linear}
-//    pub fn linear/*_ref*/(self: &Self) -> &ClampedDimension3<T>{&self.linear}
-//    pub fn linear_mut(self: &mut Self) -> &mut ClampedDimension3<T>{&mut self.linear}
-//    
-//    //pub fn rotational(self: &Self) -> ClampedDimension3<T>{self.rotational}
-//    pub fn rotational/*_ref*/(self: &Self) -> &ClampedDimension3<T>{&self.rotational}
-//    pub fn rotational_mut(self: &mut Self) -> &mut ClampedDimension3<T>{&mut self.rotational}
-//}
+pub fn calculate_acceleration<T>(
+    control_signal: /*&*/ControlAxis<Dimension3<T>>,
+    available_acceleration: &AxisContribution<ControlAxis<Dimension3<T>>>,
+    zero_value: T
+) -> ControlAxis<Dimension3<T>>
+    where T: Copy
+        + PartialOrd
+        + Mul<Output = T>
+{
+    ControlAxis::new(
+        Dimension3::new(
+            if control_signal.linear().x() > zero_value{
+                control_signal.linear().x() * available_acceleration.positive().linear().x()
+            }
+            else if control_signal.linear().x() < zero_value{
+                control_signal.linear().x() * available_acceleration.negative().linear().x()
+            }
+            else{zero_value},
+            if control_signal.linear().y() > zero_value{
+                control_signal.linear().y() * available_acceleration.positive().linear().y()
+            }
+            else if control_signal.linear().y() < zero_value{
+                control_signal.linear().y() * available_acceleration.negative().linear().y()
+            }
+            else{zero_value},
+            if control_signal.linear().z() > zero_value{
+                control_signal.linear().z() * available_acceleration.positive().linear().z()
+            }
+            else if control_signal.linear().z() < zero_value{
+                control_signal.linear().z() * available_acceleration.negative().linear().z()
+            }
+            else{zero_value}
+        ),
+        Dimension3::new(
+            if control_signal.rotational().x() > zero_value{
+                control_signal.rotational().x() * available_acceleration.positive().rotational().x()
+            }
+            else if control_signal.rotational().x() < zero_value{
+                control_signal.rotational().x() * available_acceleration.negative().rotational().x()
+            }
+            else{zero_value},
+            if control_signal.rotational().y() > zero_value{
+                control_signal.rotational().y() * available_acceleration.positive().rotational().y()
+            }
+            else if control_signal.rotational().y() < zero_value{
+                control_signal.rotational().y() * available_acceleration.negative().rotational().y()
+            }
+            else{zero_value},
+            if control_signal.rotational().z() > zero_value{
+                control_signal.rotational().z() * available_acceleration.positive().rotational().z()
+            }
+            else if control_signal.rotational().z() < zero_value{
+                control_signal.rotational().z() * available_acceleration.negative().rotational().z()
+            }
+            else{zero_value}
+        )
+    )
+}
