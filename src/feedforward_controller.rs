@@ -29,6 +29,190 @@ pub enum ControlModel{
 
 
 
+pub fn calculate<T>(
+    input: &ControlAxis<Dimension3<T>>,
+    linear_assist: &Toggle, 
+    rotational_assist: &Toggle,
+    max_velocity: &ControlAxis<Dimension3<T>>,
+    velocity: &ControlAxis<Dimension3<T>>,
+    delta_time: T,
+    clamp_value: T, //used to clamp pid output between -1.0 and 1.0
+    zero_value: T,
+    autonomous_mode: &Toggle,
+) -> ControlAxis<Dimension3<T>>
+    where T: Mul<Output = T>
+    + Div<Output = T>
+    + Add<Output = T>
+    + Sub<Output = T>
+    + Neg<Output = T>
+    + PartialOrd 
+    + Copy
+{
+    // should feedforward controller handle autonomous mode as well as manual control?
+        // manual mode generates a control signal by processing user input
+        // autonomous mode would generate a control signal by comparing a goal position vs our actual position
+
+    match autonomous_mode.enabled(){
+        true => {
+            ControlAxis::new(
+                Dimension3::default(zero_value),
+                Dimension3::default(zero_value)
+            )
+        },
+        false => {
+            ControlAxis::new(
+                Dimension3::new(
+                    calculate_control_signal(
+                        linear_assist.enabled(), 
+                        input.linear().x(), 
+                        max_velocity.linear().x(), 
+                        velocity.linear().x(), 
+                        delta_time, 
+                        zero_value, 
+                        clamp_value
+                    ),
+                    calculate_control_signal(
+                        linear_assist.enabled(), 
+                        input.linear().y(), 
+                        max_velocity.linear().y(), 
+                        velocity.linear().y(), 
+                        delta_time, 
+                        zero_value, 
+                        clamp_value
+                    ),
+                    calculate_control_signal(
+                        linear_assist.enabled(), 
+                        input.linear().z(), 
+                        max_velocity.linear().z(), 
+                        velocity.linear().z(), 
+                        delta_time, 
+                        zero_value, 
+                        clamp_value
+                    )
+                ), 
+                Dimension3::new(
+                    calculate_control_signal(
+                        rotational_assist.enabled(), 
+                        input.rotational().x(), 
+                        max_velocity.rotational().x(), 
+                        velocity.rotational().x(), 
+                        delta_time, 
+                        zero_value, 
+                        clamp_value
+                    ),
+                    calculate_control_signal(
+                        rotational_assist.enabled(), 
+                        input.rotational().y(), 
+                        max_velocity.rotational().y(), 
+                        velocity.rotational().y(), 
+                        delta_time, 
+                        zero_value, 
+                        clamp_value
+                    ),
+                    calculate_control_signal(
+                        rotational_assist.enabled(), 
+                        input.rotational().z(), 
+                        max_velocity.rotational().z(), 
+                        velocity.rotational().z(), 
+                        delta_time, 
+                        zero_value, 
+                        clamp_value
+                    )
+                )
+            )        
+        }
+    }
+
+    //ControlAxis::new(
+    //    Dimension3::new(
+    //        calculate_control_signal(
+    //            linear_assist.enabled(), 
+    //            input.linear().x(), 
+    //            max_velocity.linear().x(), 
+    //            velocity.linear().x(), 
+    //            delta_time, 
+    //            zero_value, 
+    //            clamp_value
+    //        ),
+    //        calculate_control_signal(
+    //            linear_assist.enabled(), 
+    //            input.linear().y(), 
+    //            max_velocity.linear().y(), 
+    //            velocity.linear().y(), 
+    //            delta_time, 
+    //            zero_value, 
+    //            clamp_value
+    //        ),
+    //        calculate_control_signal(
+    //            linear_assist.enabled(), 
+    //            input.linear().z(), 
+    //            max_velocity.linear().z(), 
+    //            velocity.linear().z(), 
+    //            delta_time, 
+    //            zero_value, 
+    //            clamp_value
+    //        )
+    //    ), 
+    //    Dimension3::new(
+    //        calculate_control_signal(
+    //            rotational_assist.enabled(), 
+    //            input.rotational().x(), 
+    //            max_velocity.rotational().x(), 
+    //            velocity.rotational().x(), 
+    //            delta_time, 
+    //            zero_value, 
+    //            clamp_value
+    //        ),
+    //        calculate_control_signal(
+    //            rotational_assist.enabled(), 
+    //            input.rotational().y(), 
+    //            max_velocity.rotational().y(), 
+    //            velocity.rotational().y(), 
+    //            delta_time, 
+    //            zero_value, 
+    //            clamp_value
+    //        ),
+    //        calculate_control_signal(
+    //            rotational_assist.enabled(), 
+    //            input.rotational().z(), 
+    //            max_velocity.rotational().z(), 
+    //            velocity.rotational().z(), 
+    //            delta_time, 
+    //            zero_value, 
+    //            clamp_value
+    //        )
+    //    )
+    //)
+}
+
+
+
+fn calculate_control_signal<T>(
+    assist_enabled: bool, 
+    input: T, 
+    max_velocity: T, 
+    velocity: T, 
+    delta_time: T, 
+    zero_value: T, 
+    clamp_value: T
+) -> T
+    where
+        T: Mul<Output = T>
+        + Div<Output = T>
+        + Add<Output = T>
+        + Sub<Output = T>
+        + Neg<Output = T>
+        + PartialOrd 
+        + Copy
+{
+    if assist_enabled{
+        velocity_control(input * max_velocity, velocity, delta_time, clamp_value)
+    }
+    else{
+        acceleration_control(velocity, max_velocity, input, zero_value)
+    }
+}
+
 /// velocity = change in position / change in time
 /// acceleration = change in velocity / change in time
 /// jerk = change in acceleration / change in time
@@ -61,140 +245,6 @@ fn acceleration_control<T>(
     else if current_velocity <= -max_velocity && input < zero_value{zero_value}
     else{input}
 }
-
-pub fn calculate<T>(
-    input: &ControlAxis<Dimension3<T>>,
-    linear_assist: &Toggle, 
-    rotational_assist: &Toggle,
-    max_velocity: &ControlAxis<Dimension3<T>>,
-    velocity: &ControlAxis<Dimension3<T>>,
-    delta_time: T,
-    clamp_value: T, //used to clamp pid output between -1.0 and 1.0
-    zero_value: T,
-) -> ControlAxis<Dimension3<T>>
-    where T: Mul<Output = T>
-    + Div<Output = T>
-    + Add<Output = T>
-    + Sub<Output = T>
-    + Neg<Output = T>
-    + PartialOrd 
-    + Copy
-{
-    let mut feedforward_control_signal = ControlAxis::new(
-        Dimension3::default(zero_value), 
-        Dimension3::default(zero_value)
-    );
-
-    if linear_assist.enabled(){
-        feedforward_control_signal.linear_mut().set_x(
-            velocity_control(
-                input.linear().x() * max_velocity.linear().x(),
-                velocity.linear().x(),  
-                delta_time,
-                clamp_value
-            )
-        );
-        feedforward_control_signal.linear_mut().set_y(
-            velocity_control(
-                input.linear().y() * max_velocity.linear().y(),
-                velocity.linear().y(),  
-                delta_time,
-                clamp_value
-            )
-        );
-        feedforward_control_signal.linear_mut().set_z(
-            velocity_control(
-                input.linear().z() * max_velocity.linear().z(),
-                velocity.linear().z(), 
-                delta_time,
-                clamp_value
-            )
-        );
-    }
-    else{
-        feedforward_control_signal.linear_mut().set_x(
-            acceleration_control(
-                velocity.linear().x(),
-                max_velocity.linear().x(),
-                input.linear().x(),
-                zero_value
-            )
-        );
-        feedforward_control_signal.linear_mut().set_y(
-            acceleration_control(
-                velocity.linear().y(),
-                max_velocity.linear().y(),
-                input.linear().y(),
-                zero_value
-            )
-        );
-        feedforward_control_signal.linear_mut().set_z(
-            acceleration_control(
-                velocity.linear().z(),
-                max_velocity.linear().z(),
-                input.linear().z(),
-                zero_value
-            )
-        );
-    }
-
-    if rotational_assist.enabled(){
-        feedforward_control_signal.rotational_mut().set_x(
-            velocity_control(
-                input.rotational().x() * max_velocity.rotational().x(),
-                velocity.rotational().x(), 
-                delta_time,
-                clamp_value
-            )
-        );
-        feedforward_control_signal.rotational_mut().set_y(
-            velocity_control(
-                input.rotational().y() * max_velocity.rotational().y(),
-                velocity.rotational().y(), 
-                delta_time,
-                clamp_value
-            )
-        );
-        feedforward_control_signal.rotational_mut().set_z(
-            velocity_control(
-                input.rotational().z() * max_velocity.rotational().z(),
-                velocity.rotational().z(), 
-                delta_time,
-                clamp_value
-            )
-        );
-    }
-    else{
-        feedforward_control_signal.rotational_mut().set_x(
-            acceleration_control(
-                velocity.rotational().x(),
-                max_velocity.rotational().x(),
-                input.rotational().x(),
-                zero_value
-            )
-        );
-        feedforward_control_signal.rotational_mut().set_y(
-            acceleration_control(
-                velocity.rotational().y(),
-                max_velocity.rotational().y(),
-                input.rotational().y(),
-                zero_value
-            )
-        );
-        feedforward_control_signal.rotational_mut().set_z(
-            acceleration_control(
-                velocity.rotational().z(),
-                max_velocity.rotational().z(),
-                input.rotational().z(),
-                zero_value
-            )
-        );
-    }
-
-    feedforward_control_signal
-}
-
-
 
 
 

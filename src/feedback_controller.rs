@@ -18,11 +18,6 @@ pub fn calculate<T>(
     + Add<Output = T>
     + Sub<Output = T>
 {
-    let mut feedback_control_signal = ControlAxis::new(
-        Dimension3::default(zero_value),
-        Dimension3::default(zero_value)
-    );
-
     //for each linear and rotational axis, calculate corrective values
     //consider clamping pid output values
     PID::calculate(
@@ -63,44 +58,34 @@ pub fn calculate<T>(
         delta_time
     );
 
-    //if pid output is not None, set value as feedback control signal
-    match pid6dof.linear().x().output(){
-        Some(val) => {
-            feedback_control_signal.linear_mut().set_x(val)
-        },
-        None => {}
-    }
-    match pid6dof.linear().y().output(){
-        Some(val) => {
-            feedback_control_signal.linear_mut().set_y(val)
-        },
-        None => {}
-    }
-    match pid6dof.linear().z().output(){
-        Some(val) => {
-            feedback_control_signal.linear_mut().set_z(val)
-        },
-        None => {}
-    }
-
-    match pid6dof.rotational().x().output(){
-        Some(val) => {
-            feedback_control_signal.rotational_mut().set_x(val)
-        },
-        None => {}
-    }
-    match pid6dof.rotational().y().output(){
-        Some(val) => {
-            feedback_control_signal.rotational_mut().set_y(val)
-        },
-        None => {}
-    }
-    match pid6dof.rotational().z().output(){
-        Some(val) => {
-            feedback_control_signal.rotational_mut().set_z(val)
-        },
-        None => {}
-    }
-
-    feedback_control_signal
+    ControlAxis::new(
+        Dimension3::new(
+            match pid6dof.linear().x().output(){
+                Some(val) => val,
+                None => zero_value
+            },
+            match pid6dof.linear().y().output(){
+                Some(val) => val,
+                None => zero_value
+            },
+            match pid6dof.linear().z().output(){
+                Some(val) => val,
+                None => zero_value
+            }
+        ),
+        Dimension3::new(
+            match pid6dof.rotational().x().output(){
+                Some(val) => val,
+                None => zero_value
+            },
+            match pid6dof.rotational().y().output(){
+                Some(val) => val,
+                None => zero_value
+            },
+            match pid6dof.rotational().z().output(){
+                Some(val) => val,
+                None => zero_value
+            }
+        )
+    )
 }

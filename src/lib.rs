@@ -2,7 +2,7 @@
 
 use std::ops::{Mul, Div, Add, Sub, Neg};
 use std::cmp::PartialOrd;
-//use pid_controller::PID;
+use pid_controller::PID;
 use game_utils::{
     control_axis::{ControlAxis, AxisContribution}, 
     toggle::Toggle, 
@@ -29,12 +29,10 @@ pub fn calculate<T>(
     gsafety: &Toggle,
     gsafety_max_acceleration: &AxisContribution<ControlAxis<ClampedDimension3<T>>>,
     input: &ControlAxis<Dimension3<T>>,
-    //pid6dof: &mut ControlAxis<Dimension3<PID<T>>>,
+    pid6dof: &mut ControlAxis<Dimension3<PID<T>>>,
     delta_time: T,
-    //used to clamp pid output between -1.0 and 1.0
-    clamp_value: T,
-    //to initialize structs with 0.0,
-    zero: T,
+    clamp_value: T, //used to clamp pid output between -1.0 and 1.0
+    zero: T,    //to initialize structs with 0.0,
     // max accel determined by (physical max or user defined virtual max)thrust * mass, or by gsafety settings
     available_acceleration: &AxisContribution<ControlAxis<Dimension3<T>>>,
 ) -> ControlAxis<Dimension3<T>>
@@ -51,47 +49,53 @@ pub fn calculate<T>(
 
     let mut desired_acceleration = sum_desired_acceleration(
         calculate_acceleration(
-            if autonomous_mode.enabled(){
-                ControlAxis::new(
-                    Dimension3::default(zero),
-                    Dimension3::default(zero)
-                )
-            }
-            else{
-                feedforward_controller::calculate(
-                    input,
-                    linear_assist, 
-                    rotational_assist,
-                    max_velocity,
-                    velocity,
-                    delta_time,
-                    clamp_value,
-                    zero,
-                )       
-            },
+            //if autonomous_mode.enabled(){
+            //    ControlAxis::new(
+            //        Dimension3::default(zero),
+            //        Dimension3::default(zero)
+            //    )
+            //}
+            //else{
+            //    feedforward_controller::calculate(
+            //        input,
+            //        linear_assist, 
+            //        rotational_assist,
+            //        max_velocity,
+            //        velocity,
+            //        delta_time,
+            //        clamp_value,
+            //        zero,
+            //    )       
+            //},
+            feedforward_controller::calculate(
+                input, 
+                linear_assist, 
+                rotational_assist, 
+                max_velocity, 
+                velocity, 
+                delta_time, 
+                clamp_value, 
+                zero, 
+                autonomous_mode
+            ),
             available_acceleration, 
             zero
         ),
         calculate_acceleration(
-            //feedback_controller::calculate(
-            //    &goal_position,   //goal_position will be input if autonomous mode, or expected position/attitude as calculcated 
-                                    //by results of thruster output if in pilot controlled mode
-            //    position,
-            //    pid6dof,
-            //    delta_time
-            //)
-            ControlAxis::new(
-                Dimension3::default(zero),
-                Dimension3::default(zero)
+            feedback_controller::calculate(
+                //goal_position will be input if autonomous mode, or expected position/attitude as calculcated 
+                //by results of thruster output if in pilot controlled mode
+                &ControlAxis::new(Dimension3::default(zero), Dimension3::default(zero)),
+                &ControlAxis::new(Dimension3::default(zero), Dimension3::default(zero)),
+                pid6dof,
+                delta_time,
+                zero
             ),
             available_acceleration, 
             zero
         )
     );
 
-    //G-force safety mode is an assistance mode intended to help pilots avoid injury or loss of
-    //consciousness from g-force during extreme maneuvers. It accomplishes this by limiting the
-    //amount of acceleration from thrusters to below a given threshold.
     if gsafety.enabled(){
         g_force_safety::process(
             &mut desired_acceleration,

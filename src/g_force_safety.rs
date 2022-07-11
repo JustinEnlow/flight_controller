@@ -1,5 +1,9 @@
 //! # g-force safety mode 
 //! when enabled, restricts fcs output accelerations to pilot specified limits, to reduce risk to biological life and equipment
+//! 
+//! G-force safety mode is an assistance mode intended to help pilots avoid injury or loss of
+//! consciousness from g-force during extreme maneuvers. It accomplishes this by limiting the
+//! amount of acceleration from thrusters to below a given threshold.
 
 use game_utils::dimension3::{Dimension3, ClampedDimension3};
 use game_utils::control_axis::{ControlAxis, AxisContribution};
