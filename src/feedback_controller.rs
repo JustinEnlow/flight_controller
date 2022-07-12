@@ -1,4 +1,4 @@
-use game_utils::{control_axis::ControlAxis, dimension3::Dimension3};
+use game_utils::{control_axis::{ControlAxis, AxisContribution}, dimension3::Dimension3, clamp};
 use pid_controller::PID;
 use std::ops::{Mul, Div, Add, Sub, Neg};
 use std::cmp::PartialOrd;
@@ -8,7 +8,8 @@ pub fn calculate<T>(
     position: &ControlAxis<Dimension3<T>>,
     pid6dof: &mut ControlAxis<Dimension3<PID<T>>>,
     delta_time: T,
-    zero: T
+    zero: T,
+    available_acceleration: &AxisContribution<ControlAxis<Dimension3<T>>>,
 ) -> ControlAxis<Dimension3<T>>
     where T: PartialOrd 
     + Copy 
@@ -61,29 +62,71 @@ pub fn calculate<T>(
     ControlAxis::new(
         Dimension3::new(
             match pid6dof.linear().x().output(){
-                Some(val) => val,
+                Some(val) => {
+                    clamp::cmp_mul_assym(
+                        val, 
+                        zero, 
+                        available_acceleration.positive().linear().x(), 
+                        available_acceleration.negative().linear().x(),
+                    )
+                }
                 None => zero
             },
             match pid6dof.linear().y().output(){
-                Some(val) => val,
+                Some(val) => {
+                    clamp::cmp_mul_assym(
+                        val, 
+                        zero, 
+                        available_acceleration.positive().linear().y(), 
+                        available_acceleration.negative().linear().y(),
+                    )
+                }
                 None => zero
             },
             match pid6dof.linear().z().output(){
-                Some(val) => val,
+                Some(val) => {
+                    clamp::cmp_mul_assym(
+                        val, 
+                        zero, 
+                        available_acceleration.positive().linear().z(), 
+                        available_acceleration.negative().linear().z(),
+                    )
+                }
                 None => zero
             }
         ),
         Dimension3::new(
             match pid6dof.rotational().x().output(){
-                Some(val) => val,
+                Some(val) => {
+                    clamp::cmp_mul_assym(
+                        val, 
+                        zero, 
+                        available_acceleration.positive().rotational().x(), 
+                        available_acceleration.negative().rotational().x(),
+                    )
+                }
                 None => zero
             },
             match pid6dof.rotational().y().output(){
-                Some(val) => val,
+                Some(val) => {
+                    clamp::cmp_mul_assym(
+                        val, 
+                        zero, 
+                        available_acceleration.positive().rotational().y(), 
+                        available_acceleration.negative().rotational().y(),
+                    )
+                }
                 None => zero
             },
             match pid6dof.rotational().z().output(){
-                Some(val) => val,
+                Some(val) => {
+                    clamp::cmp_mul_assym(
+                        val,
+                        zero,
+                        available_acceleration.positive().rotational().z(),
+                        available_acceleration.negative().rotational().z()
+                    )
+                }
                 None => zero
             }
         )

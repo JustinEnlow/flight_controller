@@ -31,7 +31,6 @@ pub fn calculate<T>(
     input: &ControlAxis<Dimension3<T>>,
     pid6dof: &mut ControlAxis<Dimension3<PID<T>>>,
     delta_time: T,
-    one: T,
     zero: T,
     // max accel determined by (physical max or user defined virtual max)thrust * mass, or by gsafety settings
     available_acceleration: &AxisContribution<ControlAxis<Dimension3<T>>>,
@@ -48,33 +47,26 @@ pub fn calculate<T>(
     //should we be requesting propulsion control to calculate available acceleration here, instead of feeding that value in?
 
     let mut desired_acceleration = sum_desired_acceleration(
-        calculate_acceleration(
-            feedforward_controller::calculate(
-                input, 
-                linear_assist, 
-                rotational_assist, 
-                max_velocity, 
-                velocity, 
-                delta_time, 
-                one, 
-                zero, 
-                autonomous_mode
-            ),
-            available_acceleration, 
-            zero
+        feedforward_controller::calculate(
+            input, 
+            linear_assist, 
+            rotational_assist, 
+            max_velocity, 
+            velocity, 
+            delta_time,
+            zero, 
+            autonomous_mode,
+            available_acceleration
         ),
-        calculate_acceleration(
-            feedback_controller::calculate(
-                //goal_position will be input if autonomous mode, or expected position/attitude as calculcated 
-                //by results of thruster output if in pilot controlled mode
-                &ControlAxis::new(Dimension3::default(zero), Dimension3::default(zero)),
-                &ControlAxis::new(Dimension3::default(zero), Dimension3::default(zero)),
-                pid6dof,
-                delta_time,
-                zero
-            ),
-            available_acceleration, 
-            zero
+        feedback_controller::calculate(
+            //goal_position will be input if autonomous mode, or expected position/attitude as calculcated 
+            //by results of thruster output if in pilot controlled mode
+            &ControlAxis::new(Dimension3::default(zero), Dimension3::default(zero)),
+            &ControlAxis::new(Dimension3::default(zero), Dimension3::default(zero)),
+            pid6dof,
+            delta_time,
+            zero,
+            available_acceleration
         )
     );
 
@@ -111,10 +103,9 @@ pub fn calculate<T>(
 
 
 
-fn sum_desired_acceleration<T>(feedforward: ControlAxis<Dimension3<T>>, feedback: ControlAxis<Dimension3<T>>) -> ControlAxis<Dimension3<T>>
-    where
-        T: Copy + Add<Output = T>
-{
+fn sum_desired_acceleration<T: Copy + Add<Output = T>>(
+    feedforward: ControlAxis<Dimension3<T>>, feedback: ControlAxis<Dimension3<T>>
+) -> ControlAxis<Dimension3<T>>{
     ControlAxis::new(
         Dimension3::new(
             feedforward.linear().x() + feedback.linear().x(), 
@@ -126,64 +117,5 @@ fn sum_desired_acceleration<T>(feedforward: ControlAxis<Dimension3<T>>, feedback
             feedforward.rotational().y() + feedback.rotational().y(), 
             feedforward.rotational().z() + feedback.rotational().z(),
         ),
-    )
-}
-
-pub fn calculate_acceleration<T>(
-    control_signal: /*&*/ControlAxis<Dimension3<T>>,
-    available_acceleration: &AxisContribution<ControlAxis<Dimension3<T>>>,
-    zero_value: T
-) -> ControlAxis<Dimension3<T>>
-    where T: Copy
-        + PartialOrd
-        + Mul<Output = T>
-{
-    ControlAxis::new(
-        Dimension3::new(
-            if control_signal.linear().x() > zero_value{
-                control_signal.linear().x() * available_acceleration.positive().linear().x()
-            }
-            else if control_signal.linear().x() < zero_value{
-                control_signal.linear().x() * available_acceleration.negative().linear().x()
-            }
-            else{zero_value},
-            if control_signal.linear().y() > zero_value{
-                control_signal.linear().y() * available_acceleration.positive().linear().y()
-            }
-            else if control_signal.linear().y() < zero_value{
-                control_signal.linear().y() * available_acceleration.negative().linear().y()
-            }
-            else{zero_value},
-            if control_signal.linear().z() > zero_value{
-                control_signal.linear().z() * available_acceleration.positive().linear().z()
-            }
-            else if control_signal.linear().z() < zero_value{
-                control_signal.linear().z() * available_acceleration.negative().linear().z()
-            }
-            else{zero_value}
-        ),
-        Dimension3::new(
-            if control_signal.rotational().x() > zero_value{
-                control_signal.rotational().x() * available_acceleration.positive().rotational().x()
-            }
-            else if control_signal.rotational().x() < zero_value{
-                control_signal.rotational().x() * available_acceleration.negative().rotational().x()
-            }
-            else{zero_value},
-            if control_signal.rotational().y() > zero_value{
-                control_signal.rotational().y() * available_acceleration.positive().rotational().y()
-            }
-            else if control_signal.rotational().y() < zero_value{
-                control_signal.rotational().y() * available_acceleration.negative().rotational().y()
-            }
-            else{zero_value},
-            if control_signal.rotational().z() > zero_value{
-                control_signal.rotational().z() * available_acceleration.positive().rotational().z()
-            }
-            else if control_signal.rotational().z() < zero_value{
-                control_signal.rotational().z() * available_acceleration.negative().rotational().z()
-            }
-            else{zero_value}
-        )
     )
 }
