@@ -8,7 +8,7 @@ pub fn calculate<T>(
     position: &ControlAxis<Dimension3<T>>,
     pid6dof: &mut ControlAxis<Dimension3<PID<T>>>,
     delta_time: T,
-    zero_value: T
+    zero: T
 ) -> ControlAxis<Dimension3<T>>
     where T: PartialOrd 
     + Copy 
@@ -62,29 +62,29 @@ pub fn calculate<T>(
         Dimension3::new(
             match pid6dof.linear().x().output(){
                 Some(val) => val,
-                None => zero_value
+                None => zero
             },
             match pid6dof.linear().y().output(){
                 Some(val) => val,
-                None => zero_value
+                None => zero
             },
             match pid6dof.linear().z().output(){
                 Some(val) => val,
-                None => zero_value
+                None => zero
             }
         ),
         Dimension3::new(
             match pid6dof.rotational().x().output(){
                 Some(val) => val,
-                None => zero_value
+                None => zero
             },
             match pid6dof.rotational().y().output(){
                 Some(val) => val,
-                None => zero_value
+                None => zero
             },
             match pid6dof.rotational().z().output(){
                 Some(val) => val,
-                None => zero_value
+                None => zero
             }
         )
     )

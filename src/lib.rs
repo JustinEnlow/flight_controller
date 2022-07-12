@@ -31,8 +31,8 @@ pub fn calculate<T>(
     input: &ControlAxis<Dimension3<T>>,
     pid6dof: &mut ControlAxis<Dimension3<PID<T>>>,
     delta_time: T,
-    clamp_value: T, //used to clamp pid output between -1.0 and 1.0
-    zero: T,    //to initialize structs with 0.0,
+    one: T,
+    zero: T,
     // max accel determined by (physical max or user defined virtual max)thrust * mass, or by gsafety settings
     available_acceleration: &AxisContribution<ControlAxis<Dimension3<T>>>,
 ) -> ControlAxis<Dimension3<T>>
@@ -49,24 +49,6 @@ pub fn calculate<T>(
 
     let mut desired_acceleration = sum_desired_acceleration(
         calculate_acceleration(
-            //if autonomous_mode.enabled(){
-            //    ControlAxis::new(
-            //        Dimension3::default(zero),
-            //        Dimension3::default(zero)
-            //    )
-            //}
-            //else{
-            //    feedforward_controller::calculate(
-            //        input,
-            //        linear_assist, 
-            //        rotational_assist,
-            //        max_velocity,
-            //        velocity,
-            //        delta_time,
-            //        clamp_value,
-            //        zero,
-            //    )       
-            //},
             feedforward_controller::calculate(
                 input, 
                 linear_assist, 
@@ -74,7 +56,7 @@ pub fn calculate<T>(
                 max_velocity, 
                 velocity, 
                 delta_time, 
-                clamp_value, 
+                one, 
                 zero, 
                 autonomous_mode
             ),

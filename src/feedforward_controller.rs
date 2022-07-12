@@ -13,6 +13,8 @@
 //! 
 //! when rotational flight assist is disabled, pilot input directly controls angular thrust. any motion induced will only
 //! be stopped by an equal and opposite application of thrust
+//! 
+//! returns a "control signal" between 1 and -1
 
 use std::ops::{Mul, Div, Add, Sub, Neg};
 use std::cmp::PartialOrd;
@@ -36,8 +38,8 @@ pub fn calculate<T>(
     max_velocity: &ControlAxis<Dimension3<T>>,
     velocity: &ControlAxis<Dimension3<T>>,
     delta_time: T,
-    clamp_value: T, //used to clamp pid output between -1.0 and 1.0
-    zero_value: T,
+    one: T,
+    zero: T,
     autonomous_mode: &Toggle,
 ) -> ControlAxis<Dimension3<T>>
     where T: Mul<Output = T>
@@ -48,15 +50,13 @@ pub fn calculate<T>(
     + PartialOrd 
     + Copy
 {
-    // should feedforward controller handle autonomous mode as well as manual control?
-        // manual mode generates a control signal by processing user input
-        // autonomous mode would generate a control signal by comparing a goal position vs our actual position
-
     match autonomous_mode.enabled(){
         true => {
+            // input interpreted as goal position. 
+            // determine control signal by comparing goal position with current position
             ControlAxis::new(
-                Dimension3::default(zero_value),
-                Dimension3::default(zero_value)
+                Dimension3::default(zero),
+                Dimension3::default(zero)
             )
         },
         false => {
@@ -68,8 +68,8 @@ pub fn calculate<T>(
                         max_velocity.linear().x(), 
                         velocity.linear().x(), 
                         delta_time, 
-                        zero_value, 
-                        clamp_value
+                        zero, 
+                        one
                     ),
                     calculate_control_signal(
                         linear_assist.enabled(), 
@@ -77,8 +77,8 @@ pub fn calculate<T>(
                         max_velocity.linear().y(), 
                         velocity.linear().y(), 
                         delta_time, 
-                        zero_value, 
-                        clamp_value
+                        zero, 
+                        one
                     ),
                     calculate_control_signal(
                         linear_assist.enabled(), 
@@ -86,8 +86,8 @@ pub fn calculate<T>(
                         max_velocity.linear().z(), 
                         velocity.linear().z(), 
                         delta_time, 
-                        zero_value, 
-                        clamp_value
+                        zero, 
+                        one
                     )
                 ), 
                 Dimension3::new(
@@ -97,8 +97,8 @@ pub fn calculate<T>(
                         max_velocity.rotational().x(), 
                         velocity.rotational().x(), 
                         delta_time, 
-                        zero_value, 
-                        clamp_value
+                        zero, 
+                        one
                     ),
                     calculate_control_signal(
                         rotational_assist.enabled(), 
@@ -106,8 +106,8 @@ pub fn calculate<T>(
                         max_velocity.rotational().y(), 
                         velocity.rotational().y(), 
                         delta_time, 
-                        zero_value, 
-                        clamp_value
+                        zero, 
+                        one
                     ),
                     calculate_control_signal(
                         rotational_assist.enabled(), 
@@ -115,74 +115,13 @@ pub fn calculate<T>(
                         max_velocity.rotational().z(), 
                         velocity.rotational().z(), 
                         delta_time, 
-                        zero_value, 
-                        clamp_value
+                        zero, 
+                        one
                     )
                 )
             )        
         }
     }
-
-    //ControlAxis::new(
-    //    Dimension3::new(
-    //        calculate_control_signal(
-    //            linear_assist.enabled(), 
-    //            input.linear().x(), 
-    //            max_velocity.linear().x(), 
-    //            velocity.linear().x(), 
-    //            delta_time, 
-    //            zero_value, 
-    //            clamp_value
-    //        ),
-    //        calculate_control_signal(
-    //            linear_assist.enabled(), 
-    //            input.linear().y(), 
-    //            max_velocity.linear().y(), 
-    //            velocity.linear().y(), 
-    //            delta_time, 
-    //            zero_value, 
-    //            clamp_value
-    //        ),
-    //        calculate_control_signal(
-    //            linear_assist.enabled(), 
-    //            input.linear().z(), 
-    //            max_velocity.linear().z(), 
-    //            velocity.linear().z(), 
-    //            delta_time, 
-    //            zero_value, 
-    //            clamp_value
-    //        )
-    //    ), 
-    //    Dimension3::new(
-    //        calculate_control_signal(
-    //            rotational_assist.enabled(), 
-    //            input.rotational().x(), 
-    //            max_velocity.rotational().x(), 
-    //            velocity.rotational().x(), 
-    //            delta_time, 
-    //            zero_value, 
-    //            clamp_value
-    //        ),
-    //        calculate_control_signal(
-    //            rotational_assist.enabled(), 
-    //            input.rotational().y(), 
-    //            max_velocity.rotational().y(), 
-    //            velocity.rotational().y(), 
-    //            delta_time, 
-    //            zero_value, 
-    //            clamp_value
-    //        ),
-    //        calculate_control_signal(
-    //            rotational_assist.enabled(), 
-    //            input.rotational().z(), 
-    //            max_velocity.rotational().z(), 
-    //            velocity.rotational().z(), 
-    //            delta_time, 
-    //            zero_value, 
-    //            clamp_value
-    //        )
-    //    )
-    //)
 }
 
 
@@ -193,8 +132,8 @@ fn calculate_control_signal<T>(
     max_velocity: T, 
     velocity: T, 
     delta_time: T, 
-    zero_value: T, 
-    clamp_value: T
+    zero: T, 
+    one: T
 ) -> T
     where
         T: Mul<Output = T>
@@ -206,11 +145,35 @@ fn calculate_control_signal<T>(
         + Copy
 {
     if assist_enabled{
-        velocity_control(input * max_velocity, velocity, delta_time, clamp_value)
+        clamp::clamp(
+            velocity_control(
+                input * max_velocity, 
+                velocity, 
+                delta_time
+            ) / max_velocity,   //scale back down to within reasonable range    //should we be dividing by max_accel instead?
+            one,
+        )
     }
     else{
-        acceleration_control(velocity, max_velocity, input, zero_value)
+        acceleration_control(velocity, max_velocity, input, zero)
     }
+}
+
+fn position_control<T: Div<Output = T> + Sub<Output = T> + Copy + PartialOrd + Neg<Output = T>>(
+    goal_position: T,
+    position: T,
+    velocity: T,
+    max_velocity: T,
+    delta_time: T,
+    one: T,
+) -> T{
+    let delta_position = goal_position - position;
+    let desired_velocity = delta_position / delta_time;
+    clamp::clamp(
+        //is this the right equation to get an appropriate control signal?
+        velocity_control(desired_velocity, velocity, delta_time) / max_velocity,    //should we be dividing by max_accel instead?
+        one
+    )
 }
 
 /// velocity = change in position / change in time
@@ -219,14 +182,13 @@ fn calculate_control_signal<T>(
 fn velocity_control<T: Div<Output = T> + Sub<Output = T> + Copy + PartialOrd + Neg<Output = T>>(
     desired_velocity: T, 
     velocity: T, 
-    delta_time: T, 
-    clamp_value: T,
+    delta_time: T,
     //control_model: ControlModel
 ) -> T{
     //match control_model{
         //Trapezoidal => {
             let delta_velocity = desired_velocity - velocity;
-            clamp::clamp(delta_velocity / delta_time, clamp_value)
+            delta_velocity / delta_time
         //},
         //SCurve => {}
     //}
@@ -234,15 +196,15 @@ fn velocity_control<T: Div<Output = T> + Sub<Output = T> + Copy + PartialOrd + N
 
 /// acceleration control
 fn acceleration_control<T>(
-    current_velocity: T, 
+    velocity: T, 
     max_velocity: T, 
     input: T, 
-    zero_value: T
+    zero: T
 ) -> T
     where T: Neg<Output = T> + PartialOrd + Copy
 {
-    if current_velocity >= max_velocity && input > zero_value{zero_value}
-    else if current_velocity <= -max_velocity && input < zero_value{zero_value}
+    if velocity >= max_velocity && input > zero{zero}
+    else if velocity <= -max_velocity && input < zero{zero}
     else{input}
 }
 
@@ -266,7 +228,14 @@ pub fn test_velocity_control(){
     let current_velocity = 0.0;
     let input = 1.0;
 
-    let output = velocity_control(input * max_velocity, current_velocity, 0.02, 1.0);
+    let output = clamp::clamp(
+        velocity_control(
+            input * max_velocity, 
+            current_velocity, 
+            0.02/*, 1.0*/
+        ) / max_velocity, 
+        1.0
+    );
 
     assert!((output - expected).abs() < 0.001);
 }
