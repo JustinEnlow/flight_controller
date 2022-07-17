@@ -12,12 +12,12 @@ pub fn calculate<T>(
     available_acceleration: &AxisContribution<ControlAxis<Dimension3<T>>>,
 ) -> ControlAxis<Dimension3<T>>
     where T: PartialOrd 
-    + Copy 
     + Neg<Output = T>
     + Mul<Output = T>
     + Div<Output = T>
     + Add<Output = T>
     + Sub<Output = T>
+    + Copy
 {
     //for each linear and rotational axis, calculate corrective values
     //consider clamping pid output values
