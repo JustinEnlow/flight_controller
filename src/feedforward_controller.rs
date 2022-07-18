@@ -250,21 +250,17 @@ fn calculate_axis_pilot_control_mode<T>(
     if assist_enabled{
         clamp::clamp_assym(
             velocity_control(
-                input * max_velocity, 
-                velocity, 
-                delta_time
+                input * max_velocity, velocity, delta_time
             ), 
             pos_available_accel, 
-            neg_available_accel
+            //negated due to how clamp_assym works
+            neg_available_accel.neg()
         )
     }
     else{
         clamp::cmp_mul_assym(
             acceleration_control(
-                velocity, 
-                max_velocity, 
-                input, 
-                zero
+                velocity, max_velocity, input, zero
             ), 
             zero, 
             pos_available_accel, 
@@ -272,6 +268,8 @@ fn calculate_axis_pilot_control_mode<T>(
         )
     }
 }
+
+
 
 /// velocity = change in position / change in time
 /// acceleration = change in velocity / change in time
@@ -287,13 +285,17 @@ fn velocity_control<T>(desired_velocity: T, velocity: T, delta_time: T) -> T
     delta_velocity / delta_time
 }
 
+
+
 fn acceleration_control<T>(velocity: T, max_velocity: T, input: T, zero: T) -> T
     where T: Neg<Output = T> 
     + PartialOrd 
     + Copy
 {
-    if velocity >= max_velocity && input > zero{zero}
-    else if velocity <= -max_velocity && input < zero{zero}
+    if (velocity >= max_velocity && input > zero) 
+    || (velocity <= -max_velocity && input < zero){
+        zero
+    }
     else{input}
 }
 
@@ -308,195 +310,167 @@ fn acceleration_control<T>(velocity: T, max_velocity: T, input: T, zero: T) -> T
 ////////////////////////////////////////////////////////////////////////////////
 
 #[test]
-pub fn for_positive_input_get_positive_output(){
-    let pilot_control_vel_output: f64 = calculate_axis_pilot_control_mode(
-        true, 
-        1.0, 
-        50.0, 
-        0.0, 
-        1.0, 
-        0.0, 
-        1.0, 
-        -1.0
-    );
-    assert!(pilot_control_vel_output.is_sign_positive());
-    
+pub fn test_velocity_control(){
+    // for positive input
     let vel_output: f64 = velocity_control(50.0, 0.0, 1.0);
     assert!(vel_output.is_sign_positive());
 
-    let pilot_control_acc_output: f64 = calculate_axis_pilot_control_mode(
-        false, 
-        1.0, 
-        50.0, 
-        0.0, 
-        1.0, 
-        0.0, 
-        1.0, 
-        -1.0
-    );
-    assert!(pilot_control_acc_output.is_sign_positive());
-    
-    let acc_output: f64 = acceleration_control(0.0, 50.0, 1.0, 0.0);
-    assert!(acc_output.is_sign_positive());
-}
-
-#[test]
-pub fn for_negative_input_get_negative_output(){
-    let pilot_control_vel_output: f64 = calculate_axis_pilot_control_mode(
-        true, 
-        -1.0, 
-        50.0, 
-        0.0, 
-        1.0, 
-        0.0, 
-        1.0, 
-        -1.0
-    );
-    assert!(pilot_control_vel_output.is_sign_negative());
-    
+    // for negative input
     let vel_output: f64 = velocity_control(-50.0, 0.0, 1.0);
     assert!(vel_output.is_sign_negative());
 
-    let pilot_control_acc_output: f64 = calculate_axis_pilot_control_mode(
-        false, 
-        -1.0, 
-        50.0, 
-        0.0, 
-        1.0, 
-        0.0, 
-        1.0, 
-        -1.0
-    );
-    assert!(pilot_control_acc_output.is_sign_negative());
-    
-    let acc_output: f64 = acceleration_control(0.0, 50.0, -1.0, 0.0);
-    assert!(acc_output.is_sign_negative());
-}
-
-#[test]
-pub fn for_zero_input_get_zero_output(){
-    let pilot_control_vel_output: f64 = calculate_axis_pilot_control_mode(
-        true, 
-        0.0, 
-        50.0, 
-        0.0, 
-        1.0, 
-        0.0, 
-        1.0, 
-        -1.0
-    );
-    assert!((pilot_control_vel_output - 0.0).abs() < 0.001);
-    
+    // for zero input
     let vel_output: f64 = velocity_control(0.0, 0.0, 1.0);
     assert!((vel_output - 0.0).abs() < 0.001);
-
-    let pilot_control_acc_output: f64 = calculate_axis_pilot_control_mode(
-        false, 
-        0.0, 
-        50.0, 
-        0.0, 
-        1.0, 
-        0.0, 
-        1.0, 
-        -1.0
-    );
-    assert!((pilot_control_acc_output - 0.0).abs() < 0.001);
-    
-    let acc_output: f64 = acceleration_control(0.0, 50.0, 0.0, 0.0);
-    assert!((acc_output - 0.0).abs() < 0.001);
-}
-
-// are below meaningful tests?
-#[test]
-pub fn test_velocity_control(){
-    let expected: f32 = 1.0;
-
-    let max_velocity = 50.0;
-    let current_velocity = 0.0;
-    let input = 1.0;
-
-    let output = clamp::clamp_assym(
-        velocity_control(
-            input * max_velocity, 
-            current_velocity, 
-            0.02
-        ), 
-        1.0, 
-        -1.0
-    );
-
-    assert!((output - expected).abs() < 0.001);
 }
 
 #[test]
 pub fn test_acceleration_control(){
-    let expected: f32 = 0.0;
+    // ensure output clamps at max velocity
+    let output: f64 = acceleration_control(55.0, 50.0, 1.0, 0.0);
+    assert!((output - 0.0).abs() < 0.001);
 
-    let current_velocity = 55.0;
-    let max_velocity = 50.0;
-    let input = 1.0;
+    // ensure output clamps at negative max velocity
+    let output: f64 = acceleration_control(-55.0, 50.0, -1.0, 0.0);
+    assert!((output - 0.0).abs() < 0.001);
 
-    let output = acceleration_control(current_velocity, max_velocity, input, 0.0);
+    // for positive input
+    let acc_output: f64 = acceleration_control(0.0, 50.0, 1.0, 0.0);
+    assert!(acc_output.is_sign_positive());
 
-    assert!((output - expected).abs() < 0.001);
+    // for negative input
+    let acc_output: f64 = acceleration_control(0.0, 50.0, -1.0, 0.0);
+    assert!(acc_output.is_sign_negative());
+
+    // for zero input
+    let acc_output: f64 = acceleration_control(0.0, 50.0, 0.0, 0.0);
+    assert!((acc_output - 0.0).abs() < 0.001);
 }
 
 #[test]
-pub fn idk_test_pilot_control_velocity(){
-    let expected_pos: f32 = 1.0;//2.5;
-    let expected_neg: f32 = -1.0;//-2.5;
+pub fn test_calculate_axis_pilot_control_mode(){
+    // for positive input
+    let pilot_control_vel_output: f64 = calculate_axis_pilot_control_mode(
+        true, 1.0, 50.0, 0.0, 1.0, 0.0, 1.0, 1.0
+    );
+    assert!(pilot_control_vel_output.is_sign_positive());
 
-    let output_pos = calculate_pilot_control_mode_acceleration(
-        &ControlAxis::new(Dimension3::new(1.0, 0.0, 0.0), Dimension3::default(0.0)), 
-        &Toggle::new(true), 
-        &Toggle::new(false), 
-        &ControlAxis::new(
-            Dimension3::new(50.0, 50.0, 50.0),
-            Dimension3::default(0.0)
+    let pilot_control_acc_output: f64 = calculate_axis_pilot_control_mode(
+        false, 1.0, 50.0, 0.0, 1.0, 0.0, 1.0, 1.0
+    );
+    assert!(pilot_control_acc_output.is_sign_positive());
+
+    // for negative input
+    let pilot_control_vel_output: f64 = calculate_axis_pilot_control_mode(
+        true, -1.0, 50.0, 0.0, 1.0, 0.0, 1.0, 1.0
+    );
+    assert!(pilot_control_vel_output.is_sign_negative());
+
+    let pilot_control_acc_output: f64 = calculate_axis_pilot_control_mode(
+        false, -1.0, 50.0, 0.0, 1.0, 0.0, 1.0, 1.0
+    );
+    assert!(pilot_control_acc_output.is_sign_negative());
+
+    // for zero input
+    let pilot_control_vel_output: f64 = calculate_axis_pilot_control_mode(
+        true, 0.0, 50.0, 0.0, 1.0, 0.0, 1.0, 1.0
+    );
+    assert!((pilot_control_vel_output - 0.0).abs() < 0.001);
+
+    let pilot_control_acc_output: f64 = calculate_axis_pilot_control_mode(
+        false, 0.0, 50.0, 0.0, 1.0, 0.0, 1.0, 1.0
+    );
+    assert!((pilot_control_acc_output - 0.0).abs() < 0.001);
+}
+
+#[test]
+pub fn idk(){
+    let max_velocity = ControlAxis::new(
+        Dimension3::default(50.0),
+        Dimension3::default(50.0)
+    );
+    let velocity = ControlAxis::new(
+        Dimension3::default(0.0), 
+        Dimension3::default(0.0)
+    );
+    let available_acceleration = AxisContribution::new(
+        ControlAxis::new(
+            Dimension3::default(1.0),
+            Dimension3::default(1.0)
         ), 
-        &ControlAxis::new(
-            Dimension3::default(0.0), 
-            Dimension3::default(0.0)
-        ), 
-        1.0, 
-        0.0, 
-        &AxisContribution::new(
-            ControlAxis::new(
-                Dimension3::new(1.0, 1.0, 1.0),//new(2.5, 2.5, 2.5), 
-                Dimension3::default(0.0)
-            ), 
-            ControlAxis::new(
-                Dimension3::new(-1.0, -1.0, -1.0),//new(-2.5, -2.5, -2.5),
-                Dimension3::default(0.0)
-            )
+        ControlAxis::new(
+            Dimension3::default(1.0),
+            Dimension3::default(1.0)
         )
     );
-    let output_neg = calculate_pilot_control_mode_acceleration(
-        &ControlAxis::new(Dimension3::new(-1.0, 0.0, 0.0), Dimension3::default(0.0)), 
+
+    // test veloc mode
+    let output_pos: ControlAxis<Dimension3<f64>> = calculate_pilot_control_mode_acceleration(
+        &ControlAxis::new(Dimension3::default(1.0), Dimension3::default(1.0)), 
         &Toggle::new(true), 
-        &Toggle::new(false), 
-        &ControlAxis::new(
-            Dimension3::new(50.0, 50.0, 50.0),
-            Dimension3::default(0.0)
-        ), 
-        &ControlAxis::new(
-            Dimension3::default(0.0), 
-            Dimension3::default(0.0)
-        ), 
+        &Toggle::new(true), 
+        &max_velocity, 
+        &velocity, 
         1.0, 
         0.0, 
-        &AxisContribution::new(
-            ControlAxis::new(
-                Dimension3::new(1.0, 1.0, 1.0),//new(2.5, 2.5, 2.5), 
-                Dimension3::default(0.0)
-            ), 
-            ControlAxis::new(
-                Dimension3::new(-1.0, -1.0, -1.0),//new(-2.5, -2.5, -2.5),
-                Dimension3::default(0.0)
-            )
-        )
+        &available_acceleration
     );
+    assert!((output_pos.linear().x() - 1.0).abs() < 0.001);
+    assert!((output_pos.linear().y() - 1.0).abs() < 0.001);
+    assert!((output_pos.linear().z() - 1.0).abs() < 0.001);
+    assert!((output_pos.rotational().x() - 1.0).abs() < 0.001);
+    assert!((output_pos.rotational().y() - 1.0).abs() < 0.001);
+    assert!((output_pos.rotational().z() - 1.0).abs() < 0.001);
 
-    assert!((output_pos.linear().x() - expected_pos).abs() < 0.001);
-    assert!((output_neg.linear().x() - expected_neg).abs() < 0.001);
+    let output_neg: ControlAxis<Dimension3<f64>> = calculate_pilot_control_mode_acceleration(
+        &ControlAxis::new(Dimension3::default(-1.0), Dimension3::default(-1.0)), 
+        &Toggle::new(true), 
+        &Toggle::new(true), 
+        &max_velocity, 
+        &velocity, 
+        1.0, 
+        0.0, 
+        &available_acceleration
+    );
+    assert!((output_neg.linear().x() - (-1.0)).abs() < 0.001);
+    assert!((output_neg.linear().y() - (-1.0)).abs() < 0.001);
+    assert!((output_neg.linear().z() - (-1.0)).abs() < 0.001);
+    assert!((output_neg.rotational().x() - (-1.0)).abs() < 0.001);
+    assert!((output_neg.rotational().y() - (-1.0)).abs() < 0.001);
+    assert!((output_neg.rotational().z() - (-1.0)).abs() < 0.001);
+
+    // test accel mode
+    let output_pos: ControlAxis<Dimension3<f64>> = calculate_pilot_control_mode_acceleration(
+        &ControlAxis::new(Dimension3::default(1.0), Dimension3::default(1.0)), 
+        &Toggle::new(false), 
+        &Toggle::new(false), 
+        &max_velocity, 
+        &velocity, 
+        1.0, 
+        0.0, 
+        &available_acceleration
+    );
+    assert!((output_pos.linear().x() - 1.0).abs() < 0.001);
+    assert!((output_pos.linear().y() - 1.0).abs() < 0.001);
+    assert!((output_pos.linear().z() - 1.0).abs() < 0.001);
+    assert!((output_pos.rotational().x() - 1.0).abs() < 0.001);
+    assert!((output_pos.rotational().y() - 1.0).abs() < 0.001);
+    assert!((output_pos.rotational().z() - 1.0).abs() < 0.001);
+
+    let output_neg: ControlAxis<Dimension3<f64>> = calculate_pilot_control_mode_acceleration(
+        &ControlAxis::new(Dimension3::default(-1.0), Dimension3::default(-1.0)), 
+        &Toggle::new(false), 
+        &Toggle::new(false), 
+        &max_velocity, 
+        &velocity, 
+        1.0, 
+        0.0, 
+        &available_acceleration
+    );
+    assert!((output_neg.linear().x() - (-1.0)).abs() < 0.001);
+    assert!((output_neg.linear().y() - (-1.0)).abs() < 0.001);
+    assert!((output_neg.linear().z() - (-1.0)).abs() < 0.001);
+    assert!((output_neg.rotational().x() - (-1.0)).abs() < 0.001);
+    assert!((output_neg.rotational().y() - (-1.0)).abs() < 0.001);
+    assert!((output_neg.rotational().z() - (-1.0)).abs() < 0.001);
 }
