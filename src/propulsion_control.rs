@@ -104,18 +104,12 @@ pub fn calculate_available_thrust<T>(
     // could this be calculated and returned from the function instead?
     thruster_mount_points: &[ThrusterMountPoint<T>],
     zero_value: T
-) -> AxisContribution<ControlAxis<Dimension3<T>>>
+) -> ControlAxis<Dimension3<AxisContribution<T>>>
     where T: Copy + Add<Output = T> + Neg<Output = T> + PartialOrd
 {
-    let mut available_thrust = AxisContribution::new(
-        ControlAxis::new(
-            Dimension3::default(zero_value),
-            Dimension3::default(zero_value)
-        ),
-        ControlAxis::new(
-            Dimension3::default(zero_value),
-            Dimension3::default(zero_value)
-        )
+    let mut available_thrust = ControlAxis::new(
+        Dimension3::default(AxisContribution::new(zero_value, zero_value)),
+        Dimension3::default(AxisContribution::new(zero_value, zero_value))
     );
     
     // determine max available thrust for each movable direction
@@ -129,52 +123,52 @@ pub fn calculate_available_thrust<T>(
                 for thrust_direction in thruster_mount_point.thrust_direction(){
                     match thrust_direction{
                         ThrustDirection::Right => {
-                            let sum = available_thrust.positive().linear().x() + thruster.max_thrust();
-                            available_thrust.positive_mut().linear_mut().set_x(sum);
+                            let sum = available_thrust.linear().x().positive() + thruster.max_thrust();
+                            available_thrust.linear_mut().x_mut().set_positive(sum);
                         },
                         ThrustDirection::Left => {
-                            let sum = available_thrust.negative().linear().x() + thruster.max_thrust();
-                            available_thrust.negative_mut().linear_mut().set_x(sum);
+                            let sum = available_thrust.linear().x().negative() + thruster.max_thrust();
+                            available_thrust.linear_mut().x_mut().set_negative(sum);
                         },
                         ThrustDirection::Up => {
-                            let sum = available_thrust.positive().linear().y() + thruster.max_thrust();
-                            available_thrust.positive_mut().linear_mut().set_y(sum);
+                            let sum = available_thrust.linear().y().positive() + thruster.max_thrust();
+                            available_thrust.linear_mut().y_mut().set_positive(sum);
                         },
                         ThrustDirection::Down => {
-                            let sum = available_thrust.negative().linear().y() + thruster.max_thrust();
-                            available_thrust.negative_mut().linear_mut().set_y(sum);
+                            let sum = available_thrust.linear().y().negative() + thruster.max_thrust();
+                            available_thrust.linear_mut().y_mut().set_negative(sum);
                         },
                         ThrustDirection::Forward => {
-                            let sum = available_thrust.positive().linear().z() + thruster.max_thrust();
-                            available_thrust.positive_mut().linear_mut().set_z(sum);
+                            let sum = available_thrust.linear().z().positive() + thruster.max_thrust();
+                            available_thrust.linear_mut().z_mut().set_positive(sum);
                         },
                         ThrustDirection::Backward => {
-                            let sum = available_thrust.negative().linear().z() + thruster.max_thrust();
-                            available_thrust.negative_mut().linear_mut().set_z(sum);
+                            let sum = available_thrust.linear().z().negative() + thruster.max_thrust();
+                            available_thrust.linear_mut().z_mut().set_negative(sum);
                         },
                         ThrustDirection::PitchUp => {
-                            let sum = available_thrust.positive().rotational().x() + thruster.max_thrust();
-                            available_thrust.positive_mut().rotational_mut().set_x(sum)
+                            let sum = available_thrust.rotational().x().positive() + thruster.max_thrust();
+                            available_thrust.rotational_mut().x_mut().set_positive(sum);
                         },
                         ThrustDirection::PitchDown => {
-                            let sum = available_thrust.negative().rotational().x() + thruster.max_thrust();
-                            available_thrust.negative_mut().rotational_mut().set_x(sum)
+                            let sum = available_thrust.rotational().x().negative() + thruster.max_thrust();
+                            available_thrust.rotational_mut().x_mut().set_negative(sum);
                         },
                         ThrustDirection::YawRight => {
-                            let sum = available_thrust.positive().rotational().y() + thruster.max_thrust();
-                            available_thrust.positive_mut().rotational_mut().set_y(sum)
+                            let sum = available_thrust.rotational().y().positive() + thruster.max_thrust();
+                            available_thrust.rotational_mut().y_mut().set_positive(sum);
                         },
                         ThrustDirection::YawLeft => {
-                            let sum = available_thrust.negative().rotational().y() + thruster.max_thrust();
-                            available_thrust.negative_mut().rotational_mut().set_y(sum)
+                            let sum = available_thrust.rotational().y().negative() + thruster.max_thrust();
+                            available_thrust.rotational_mut().y_mut().set_negative(sum);
                         },
                         ThrustDirection::RollRight => {
-                            let sum = available_thrust.positive().rotational().z() + thruster.max_thrust();
-                            available_thrust.positive_mut().rotational_mut().set_z(sum)
+                            let sum = available_thrust.rotational().z().positive() + thruster.max_thrust();
+                            available_thrust.rotational_mut().z_mut().set_positive(sum);
                         },
                         ThrustDirection::RollLeft => {
-                            let sum = available_thrust.negative().rotational().z() + thruster.max_thrust();
-                            available_thrust.negative_mut().rotational_mut().set_z(sum)
+                            let sum = available_thrust.rotational().z().negative() + thruster.max_thrust();
+                            available_thrust.rotational_mut().z_mut().set_negative(sum);
                         },
                     }
                 }
@@ -192,36 +186,38 @@ pub fn calculate_available_thrust<T>(
 
 /// use available thrust per axis and mass/moment of inertia to calculate available acceleration per axis.
 pub fn calculate_available_acceleration<T>(
-    available_thrust: &AxisContribution<ControlAxis<Dimension3<T>>>,
+    available_thrust: &ControlAxis<Dimension3<AxisContribution<T>>>,
     mass: T
-) -> AxisContribution<ControlAxis<Dimension3<T>>>
+) -> ControlAxis<Dimension3<AxisContribution<T>>>
     where T: Mul<Output = T> + Div<Output = T> + Copy
 {
-    AxisContribution::new(
-        ControlAxis::new(
-            Dimension3::new(
-                available_thrust.positive().linear().x() / mass, 
-                available_thrust.positive().linear().y() / mass, 
-                available_thrust.positive().linear().z() / mass
-            ), 
-            Dimension3::new(
-                // would use moment of inertia or something. idk...
-                available_thrust.positive().rotational().x() / mass, 
-                available_thrust.positive().rotational().y() / mass, 
-                available_thrust.positive().rotational().z() / mass
+    ControlAxis::new(
+        Dimension3::new(
+            AxisContribution::new(
+                available_thrust.linear().x().positive() / mass,
+                available_thrust.linear().x().negative() / mass
+            ),
+            AxisContribution::new(
+                available_thrust.linear().y().positive() / mass,
+                available_thrust.linear().y().negative() / mass
+            ),
+            AxisContribution::new(
+                available_thrust.linear().z().positive() / mass,
+                available_thrust.linear().z().negative() / mass
             )
-        ), 
-        ControlAxis::new(
-            Dimension3::new(
-                available_thrust.negative().linear().x() / mass, 
-                available_thrust.negative().linear().y() / mass, 
-                available_thrust.negative().linear().z() / mass
-            ), 
-            Dimension3::new(
-                // would use moment of inertia or something. idk...
-                available_thrust.negative().rotational().x() / mass,
-                available_thrust.negative().rotational().y() / mass,
-                available_thrust.negative().rotational().z() / mass
+        ),
+        Dimension3::new(
+            AxisContribution::new(
+                available_thrust.rotational().x().positive() / mass/*moment of inertia?*/,
+                available_thrust.rotational().x().negative() / mass/*moment of inertia?*/
+            ),
+            AxisContribution::new(
+                available_thrust.rotational().y().positive() / mass/*moment of inertia?*/,
+                available_thrust.rotational().y().negative() / mass/*moment of inertia?*/
+            ),
+            AxisContribution::new(
+                available_thrust.rotational().z().positive() / mass/*moment of inertia?*/,
+                available_thrust.rotational().z().negative() / mass/*moment of inertia?*/
             )
         )
     )
@@ -357,60 +353,48 @@ pub fn test_calculate_available_thrust(){
         0.0
     );
 
-    let expected = AxisContribution::new(
-        ControlAxis::new(
-            Dimension3::new(
-                20_000.0, 20_000.0, 20_000.0
-            ),
-            Dimension3::new(
-                0.0, 0.0, 0.0
-            )
+    let expected = ControlAxis::new(
+        Dimension3::new(
+            AxisContribution::new(20_000.0, 20_000.0),
+            AxisContribution::new(20_000.0, 20_000.0),
+            AxisContribution::new(20_000.0, 20_000.0)
         ),
-        ControlAxis::new(
-            Dimension3::new(
-                20_000.0, 20_000.0, 20_000.0
-            ),
-            Dimension3::new(
-                0.0, 0.0, 0.0
-            )
+        Dimension3::new(
+            AxisContribution::new(0.0, 0.0),
+            AxisContribution::new(0.0, 0.0),
+            AxisContribution::new(0.0, 0.0)
         )
     );
 
-    assert!((expected.positive().linear().x() - available_thrust.positive().linear().x()).abs() < 0.001);
-    assert!((expected.positive().linear().y() - available_thrust.positive().linear().y()).abs() < 0.001);
-    assert!((expected.positive().linear().z() - available_thrust.positive().linear().z()).abs() < 0.001);
+    assert!((available_thrust.linear().x().positive() - expected.linear().x().positive()).abs() < 0.001);
+    assert!((available_thrust.linear().y().positive() - expected.linear().y().positive()).abs() < 0.001);
+    assert!((available_thrust.linear().z().positive() - expected.linear().z().positive()).abs() < 0.001);
     
-    assert!((expected.positive().rotational().x() - available_thrust.positive().rotational().x()).abs() < 0.001);
-    assert!((expected.positive().rotational().y() - available_thrust.positive().rotational().y()).abs() < 0.001);
-    assert!((expected.positive().rotational().z() - available_thrust.positive().rotational().z()).abs() < 0.001);
+    assert!((available_thrust.rotational().x().positive() - expected.rotational().x().positive()).abs() < 0.001);
+    assert!((available_thrust.rotational().y().positive() - expected.rotational().y().positive()).abs() < 0.001);
+    assert!((available_thrust.rotational().z().positive() - expected.rotational().z().positive()).abs() < 0.001);
     
-    assert!((expected.negative().linear().x() - available_thrust.negative().linear().x()).abs() < 0.001);
-    assert!((expected.negative().linear().y() - available_thrust.negative().linear().y()).abs() < 0.001);
-    assert!((expected.negative().linear().z() - available_thrust.negative().linear().z()).abs() < 0.001);
+    assert!((available_thrust.linear().x().negative() - expected.linear().x().negative()).abs() < 0.001);
+    assert!((available_thrust.linear().y().negative() - expected.linear().y().negative()).abs() < 0.001);
+    assert!((available_thrust.linear().z().negative() - expected.linear().z().negative()).abs() < 0.001);
     
-    assert!((expected.negative().rotational().x() - available_thrust.negative().rotational().x()).abs() < 0.001);
-    assert!((expected.negative().rotational().y() - available_thrust.negative().rotational().y()).abs() < 0.001);
-    assert!((expected.negative().rotational().z() - available_thrust.negative().rotational().z()).abs() < 0.001);
+    assert!((available_thrust.rotational().x().negative() - expected.rotational().x().negative()).abs() < 0.001);
+    assert!((available_thrust.rotational().y().negative() - expected.rotational().y().negative()).abs() < 0.001);
+    assert!((available_thrust.rotational().z().negative() - expected.rotational().z().negative()).abs() < 0.001);
 }
 
 #[test]
 pub fn test_calculate_available_acceleration(){
-    let available_thrust = AxisContribution::new(
-        ControlAxis::new(
-            Dimension3::new(
-                20_000.0, 20_000.0, 20_000.0
-            ),
-            Dimension3::new(
-                0.0, 0.0, 0.0
-            )
+    let available_thrust = ControlAxis::new(
+        Dimension3::new(
+            AxisContribution::new(20_000.0, 20_000.0),
+            AxisContribution::new(20_000.0, 20_000.0),
+            AxisContribution::new(20_000.0, 20_000.0)
         ),
-        ControlAxis::new(
-            Dimension3::new(
-                20_000.0, 20_000.0, 20_000.0
-            ),
-            Dimension3::new(
-                0.0, 0.0, 0.0
-            )
+        Dimension3::new(
+            AxisContribution::new(0.0, 0.0),
+            AxisContribution::new(0.0, 0.0),
+            AxisContribution::new(0.0, 0.0)
         )
     );
 
@@ -421,38 +405,32 @@ pub fn test_calculate_available_acceleration(){
         mass
     );
 
-    let expected = AxisContribution::new(
-        ControlAxis::new(
-            Dimension3::new(
-                10.0, 10.0, 10.0
-            ),
-            Dimension3::new(
-                0.0, 0.0, 0.0
-            )
+    let expected = ControlAxis::new(
+        Dimension3::new(
+            AxisContribution::new(10.0, 10.0),
+            AxisContribution::new(10.0, 10.0),
+            AxisContribution::new(10.0, 10.0),
         ),
-        ControlAxis::new(
-            Dimension3::new(
-                10.0, 10.0, 10.0
-            ),
-            Dimension3::new(
-                0.0, 0.0, 0.0
-            )
+        Dimension3::new(
+            AxisContribution::new(0.0, 0.0),
+            AxisContribution::new(0.0, 0.0),
+            AxisContribution::new(0.0, 0.0),
         )
     );
 
-    assert!((expected.positive().linear().x() - available_acceleration.positive().linear().x()).abs() < 0.001);
-    assert!((expected.positive().linear().y() - available_acceleration.positive().linear().y()).abs() < 0.001);
-    assert!((expected.positive().linear().z() - available_acceleration.positive().linear().z()).abs() < 0.001);
+    assert!((available_acceleration.linear().x().positive() - expected.linear().x().positive()).abs() < 0.001);
+    assert!((available_acceleration.linear().y().positive() - expected.linear().y().positive()).abs() < 0.001);
+    assert!((available_acceleration.linear().z().positive() - expected.linear().z().positive()).abs() < 0.001);
 
-    assert!((expected.positive().rotational().x() - available_acceleration.positive().rotational().x()).abs() < 0.001);
-    assert!((expected.positive().rotational().y() - available_acceleration.positive().rotational().y()).abs() < 0.001);
-    assert!((expected.positive().rotational().z() - available_acceleration.positive().rotational().z()).abs() < 0.001);
+    assert!((available_acceleration.rotational().x().positive() - expected.rotational().x().positive()).abs() < 0.001);
+    assert!((available_acceleration.rotational().y().positive() - expected.rotational().y().positive()).abs() < 0.001);
+    assert!((available_acceleration.rotational().z().positive() - expected.rotational().z().positive()).abs() < 0.001);
 
-    assert!((expected.negative().linear().x() - available_acceleration.negative().linear().x()).abs() < 0.001);
-    assert!((expected.negative().linear().y() - available_acceleration.negative().linear().y()).abs() < 0.001);
-    assert!((expected.negative().linear().z() - available_acceleration.negative().linear().z()).abs() < 0.001);
+    assert!((available_acceleration.linear().x().negative() - expected.linear().x().negative()).abs() < 0.001);
+    assert!((available_acceleration.linear().y().negative() - expected.linear().y().negative()).abs() < 0.001);
+    assert!((available_acceleration.linear().z().negative() - expected.linear().z().negative()).abs() < 0.001);
 
-    assert!((expected.negative().rotational().x() - available_acceleration.negative().rotational().x()).abs() < 0.001);
-    assert!((expected.negative().rotational().y() - available_acceleration.negative().rotational().y()).abs() < 0.001);
-    assert!((expected.negative().rotational().z() - available_acceleration.negative().rotational().z()).abs() < 0.001);
+    assert!((available_acceleration.rotational().x().negative() - expected.rotational().x().negative()).abs() < 0.001);
+    assert!((available_acceleration.rotational().y().negative() - expected.rotational().y().negative()).abs() < 0.001);
+    assert!((available_acceleration.rotational().z().negative() - expected.rotational().z().negative()).abs() < 0.001);
 }

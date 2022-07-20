@@ -9,7 +9,7 @@ pub fn calculate<T>(
     pid6dof: &mut ControlAxis<Dimension3<PID<T>>>,
     delta_time: T,
     zero: T,
-    available_acceleration: &AxisContribution<ControlAxis<Dimension3<T>>>,
+    available_acceleration: &ControlAxis<Dimension3<AxisContribution<T>>>,
 ) -> ControlAxis<Dimension3<T>>
     where T: PartialOrd 
     + Neg<Output = T>
@@ -29,8 +29,8 @@ pub fn calculate<T>(
                     delta_time
                 ), 
                 zero, 
-                available_acceleration.positive().linear().x(), 
-                available_acceleration.negative().linear().x()
+                available_acceleration.linear().x().positive(),
+                available_acceleration.linear().x().negative()
             ), 
             clamp::cmp_mul_assym(
                 PID::calculate(
@@ -40,8 +40,8 @@ pub fn calculate<T>(
                     delta_time
                 ), 
                 zero, 
-                available_acceleration.positive().linear().y(), 
-                available_acceleration.negative().linear().y()
+                available_acceleration.linear().y().positive(),
+                available_acceleration.linear().y().negative()
             ), 
             clamp::cmp_mul_assym(
                 PID::calculate(
@@ -51,8 +51,8 @@ pub fn calculate<T>(
                     delta_time
                 ), 
                 zero, 
-                available_acceleration.positive().linear().z(), 
-                available_acceleration.negative().linear().z()
+                available_acceleration.linear().z().positive(),
+                available_acceleration.linear().z().negative()
             )
         ),
         Dimension3::new(
@@ -64,8 +64,8 @@ pub fn calculate<T>(
                     delta_time
                 ), 
                 zero, 
-                available_acceleration.positive().rotational().x(), 
-                available_acceleration.negative().rotational().x()
+                available_acceleration.rotational().x().positive(),
+                available_acceleration.rotational().x().negative()
             ), 
             clamp::cmp_mul_assym(
                 PID::calculate(
@@ -75,8 +75,8 @@ pub fn calculate<T>(
                     delta_time
                 ), 
                 zero, 
-                available_acceleration.positive().rotational().y(), 
-                available_acceleration.negative().rotational().y()
+                available_acceleration.rotational().y().positive(),
+                available_acceleration.rotational().y().negative()
             ), 
             clamp::cmp_mul_assym(
                 PID::calculate(
@@ -86,8 +86,8 @@ pub fn calculate<T>(
                     delta_time
                 ), 
                 zero, 
-                available_acceleration.positive().rotational().z(), 
-                available_acceleration.negative().rotational().z()
+                available_acceleration.rotational().z().positive(),
+                available_acceleration.rotational().z().negative()
             )
         )
     )

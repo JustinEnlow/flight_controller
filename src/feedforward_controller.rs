@@ -32,7 +32,7 @@ pub fn calculate_autonomous_mode_acceleration<T>(
     velocity: &ControlAxis<Dimension3<T>>,
     max_velocity: &ControlAxis<Dimension3<T>>,
     delta_time: T,
-    available_acceleration: &AxisContribution<ControlAxis<Dimension3<T>>>,
+    available_acceleration: &ControlAxis<Dimension3<AxisContribution<T>>>,
 ) -> ControlAxis<Dimension3<T>>
     where T: Mul<Output = T>
     + Div<Output = T>
@@ -56,8 +56,8 @@ pub fn calculate_autonomous_mode_acceleration<T>(
                 velocity.linear().x(), 
                 max_velocity.linear().x(), 
                 delta_time, 
-                available_acceleration.positive().linear().x(), 
-                available_acceleration.negative().linear().x()
+                available_acceleration.linear().x().positive(),
+                available_acceleration.linear().x().negative()
             ), 
             calculate_axis_autonomous_mode(
                 goal_position.linear().y(), 
@@ -65,8 +65,8 @@ pub fn calculate_autonomous_mode_acceleration<T>(
                 velocity.linear().y(), 
                 max_velocity.linear().y(), 
                 delta_time, 
-                available_acceleration.positive().linear().y(), 
-                available_acceleration.negative().linear().y()
+                available_acceleration.linear().y().positive(),
+                available_acceleration.linear().y().negative()
             ), 
             calculate_axis_autonomous_mode(
                 goal_position.linear().z(), 
@@ -74,8 +74,8 @@ pub fn calculate_autonomous_mode_acceleration<T>(
                 velocity.linear().z(), 
                 max_velocity.linear().z(), 
                 delta_time, 
-                available_acceleration.positive().linear().z(), 
-                available_acceleration.negative().linear().z()
+                available_acceleration.linear().z().positive(),
+                available_acceleration.linear().z().negative()
             )
         ),
         Dimension3::new(
@@ -85,8 +85,8 @@ pub fn calculate_autonomous_mode_acceleration<T>(
                 velocity.rotational().x(), 
                 max_velocity.rotational().x(), 
                 delta_time, 
-                available_acceleration.positive().rotational().x(), 
-                available_acceleration.negative().rotational().x()
+                available_acceleration.rotational().x().positive(),
+                available_acceleration.rotational().x().negative()
             ),
             calculate_axis_autonomous_mode(
                 goal_position.rotational().y(), 
@@ -94,8 +94,8 @@ pub fn calculate_autonomous_mode_acceleration<T>(
                 velocity.rotational().y(), 
                 max_velocity.rotational().y(), 
                 delta_time, 
-                available_acceleration.positive().rotational().y(), 
-                available_acceleration.negative().rotational().y()
+                available_acceleration.rotational().y().positive(),
+                available_acceleration.rotational().y().negative()
             ),
             calculate_axis_autonomous_mode(
                 goal_position.rotational().z(), 
@@ -103,8 +103,8 @@ pub fn calculate_autonomous_mode_acceleration<T>(
                 velocity.rotational().z(), 
                 max_velocity.rotational().z(), 
                 delta_time, 
-                available_acceleration.positive().rotational().z(), 
-                available_acceleration.negative().rotational().z()
+                available_acceleration.rotational().z().positive(),
+                available_acceleration.rotational().z().negative()
             )
         )
     )
@@ -149,7 +149,7 @@ pub fn calculate_pilot_control_mode_acceleration<T>(
     velocity: &ControlAxis<Dimension3<T>>,
     delta_time: T,
     zero: T,
-    available_acceleration: &AxisContribution<ControlAxis<Dimension3<T>>>,
+    available_acceleration: &ControlAxis<Dimension3<AxisContribution<T>>>,
 ) -> ControlAxis<Dimension3<T>>
     where T: Mul<Output = T>
     + Div<Output = T>
@@ -168,8 +168,8 @@ pub fn calculate_pilot_control_mode_acceleration<T>(
                 velocity.linear().x(), 
                 delta_time, 
                 zero,
-                available_acceleration.positive().linear().x(),
-                available_acceleration.negative().linear().x(),
+                available_acceleration.linear().x().positive(),
+                available_acceleration.linear().x().negative()
             ),
             calculate_axis_pilot_control_mode(
                 linear_assist.enabled(), 
@@ -178,8 +178,8 @@ pub fn calculate_pilot_control_mode_acceleration<T>(
                 velocity.linear().y(), 
                 delta_time, 
                 zero,
-                available_acceleration.positive().linear().y(),
-                available_acceleration.negative().linear().y(),
+                available_acceleration.linear().y().positive(),
+                available_acceleration.linear().y().negative()
             ),
             calculate_axis_pilot_control_mode(
                 linear_assist.enabled(), 
@@ -188,8 +188,8 @@ pub fn calculate_pilot_control_mode_acceleration<T>(
                 velocity.linear().z(), 
                 delta_time, 
                 zero,
-                available_acceleration.positive().linear().z(),
-                available_acceleration.negative().linear().z(),
+                available_acceleration.linear().z().positive(),
+                available_acceleration.linear().z().negative()
             )
         ), 
         Dimension3::new(
@@ -200,8 +200,8 @@ pub fn calculate_pilot_control_mode_acceleration<T>(
                 velocity.rotational().x(), 
                 delta_time, 
                 zero,
-                available_acceleration.positive().rotational().x(),
-                available_acceleration.negative().rotational().x(),
+                available_acceleration.rotational().x().positive(),
+                available_acceleration.rotational().x().negative()
             ),
             calculate_axis_pilot_control_mode(
                 rotational_assist.enabled(), 
@@ -210,8 +210,8 @@ pub fn calculate_pilot_control_mode_acceleration<T>(
                 velocity.rotational().y(), 
                 delta_time, 
                 zero,
-                available_acceleration.positive().rotational().y(),
-                available_acceleration.negative().rotational().y(),
+                available_acceleration.rotational().y().positive(),
+                available_acceleration.rotational().y().negative()
             ),
             calculate_axis_pilot_control_mode(
                 rotational_assist.enabled(), 
@@ -220,8 +220,8 @@ pub fn calculate_pilot_control_mode_acceleration<T>(
                 velocity.rotational().z(), 
                 delta_time, 
                 zero,
-                available_acceleration.positive().rotational().z(),
-                available_acceleration.negative().rotational().z(),
+                available_acceleration.rotational().z().positive(),
+                available_acceleration.rotational().z().negative()
             )
         )
     )
@@ -393,14 +393,16 @@ pub fn idk(){
         Dimension3::default(0.0), 
         Dimension3::default(0.0)
     );
-    let available_acceleration = AxisContribution::new(
-        ControlAxis::new(
-            Dimension3::default(1.0),
-            Dimension3::default(1.0)
+    let available_acceleration = ControlAxis::new(
+        Dimension3::new(
+            AxisContribution::new(1.0, 1.0), 
+            AxisContribution::new(1.0, 1.0), 
+            AxisContribution::new(1.0, 1.0)
         ), 
-        ControlAxis::new(
-            Dimension3::default(1.0),
-            Dimension3::default(1.0)
+        Dimension3::new(
+            AxisContribution::new(1.0, 1.0), 
+            AxisContribution::new(1.0, 1.0), 
+            AxisContribution::new(1.0, 1.0)
         )
     );
 

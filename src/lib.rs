@@ -2,7 +2,7 @@
 
 use std::ops::Add;
 use game_utils::{
-    control_axis::{ControlAxis, AxisContribution},
+    control_axis::ControlAxis,
     dimension3::Dimension3
 };
 
@@ -16,25 +16,6 @@ pub mod propulsion_control;
 
 
 
-fn idk(){
-    //might be a better structure than AxisContribution<ControlAxis<Dimension3<T>>>
-    let mut idk = ControlAxis::new(
-        Dimension3::new(
-            AxisContribution::new(
-                1.0,
-                -1.0
-            ), 
-            AxisContribution::new(1.0, -1.0), 
-            AxisContribution::new(1.0, -1.0)
-        ),
-        Dimension3::new(
-            AxisContribution::new(1.0, -1.0), 
-            AxisContribution::new(1.0, -1.0), 
-            AxisContribution::new(1.0, -1.0)
-        )
-    );
-    idk.linear_mut().x_mut().set_positive(0.0); //seems like this may work...
-}
 // typical behavior
 
 // get feedforward_desired_acceleration = if autonomous_mode.enabled{
