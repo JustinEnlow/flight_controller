@@ -5,83 +5,83 @@
 //! consciousness from g-force during extreme maneuvers. It accomplishes this by limiting the
 //! amount of acceleration from thrusters to below a given threshold.
 
-use game_utils::dimension3::{Dimension3, ClampedDimension3};
+use game_utils::dimension3::Dimension3;
 use game_utils::control_axis::{ControlAxis, AxisContribution};
-use std::ops::Neg;//{Mul, Div, Add, Sub, Neg};
+use std::ops::Neg;
+use game_utils::clamp;
+
 
 
 
 
 pub fn process<T>(
-    desired_acceleration: &mut ControlAxis<Dimension3<T>>,
-    gsafety_max_acceleration: &AxisContribution<ControlAxis<ClampedDimension3<T>>>
-)
+    //desired_acceleration: &mut ControlAxis<Dimension3<T>>,
+    desired_acceleration: &ControlAxis<Dimension3<T>>,
+    gsafety_max_acceleration: &AxisContribution<ControlAxis</*Clamped*/Dimension3<T>>>  //ClampedDimension3 doesn't seem to be needed...verify later
+) -> ControlAxis<Dimension3<T>>
     where T: Copy + PartialOrd + Neg<Output = T>
 {
-    if desired_acceleration.linear().x() > gsafety_max_acceleration.positive().linear().x(){
-        desired_acceleration.linear_mut().set_x(
-            gsafety_max_acceleration.positive().linear().x()
+    ControlAxis::new(
+        Dimension3::new(
+            clamp::clamp_assym(
+                desired_acceleration.linear().x(), 
+                gsafety_max_acceleration.positive().linear().x(), 
+                gsafety_max_acceleration.negative().linear().x().neg()
+            ), 
+            clamp::clamp_assym(
+                desired_acceleration.linear().y(), 
+                gsafety_max_acceleration.positive().linear().y(), 
+                gsafety_max_acceleration.negative().linear().y().neg()
+            ), 
+            clamp::clamp_assym(
+                desired_acceleration.linear().z(), 
+                gsafety_max_acceleration.positive().linear().z(), 
+                gsafety_max_acceleration.negative().linear().z().neg()
+            )
+        ),
+        Dimension3::new(
+            clamp::clamp_assym(
+                desired_acceleration.rotational().x(), 
+                gsafety_max_acceleration.positive().rotational().x(), 
+                gsafety_max_acceleration.negative().rotational().x().neg()
+            ),
+            clamp::clamp_assym(
+                desired_acceleration.rotational().y(), 
+                gsafety_max_acceleration.positive().rotational().y(), 
+                gsafety_max_acceleration.negative().rotational().y().neg()
+            ),
+            clamp::clamp_assym(
+                desired_acceleration.rotational().z(), 
+                gsafety_max_acceleration.positive().rotational().z(), 
+                gsafety_max_acceleration.negative().rotational().z().neg()
+            )
         )
-    }
-    else if desired_acceleration.linear().x() < gsafety_max_acceleration.negative().linear().x(){
-        desired_acceleration.linear_mut().set_x(
-            gsafety_max_acceleration.negative().linear().x()
-        )
-    }
+    )
+}
 
-    if desired_acceleration.linear().y() > gsafety_max_acceleration.positive().linear().y(){
-        desired_acceleration.linear_mut().set_y(
-            gsafety_max_acceleration.positive().linear().y()
-        )
-    }
-    else if desired_acceleration.linear().y() < gsafety_max_acceleration.negative().linear().y(){
-        desired_acceleration.linear_mut().set_y(
-            gsafety_max_acceleration.negative().linear().y()
-        )
-    }
-
-    if desired_acceleration.linear().z() > gsafety_max_acceleration.positive().linear().z(){
-        desired_acceleration.linear_mut().set_z(
-            gsafety_max_acceleration.positive().linear().z()
-        )
-    }
-    else if desired_acceleration.linear().z() < gsafety_max_acceleration.negative().linear().z(){
-        desired_acceleration.linear_mut().set_z(
-            gsafety_max_acceleration.negative().linear().z()
-        )
-    }
 
 
-    if desired_acceleration.rotational().x() > gsafety_max_acceleration.positive().rotational().x(){
-        desired_acceleration.rotational_mut().set_x(
-            gsafety_max_acceleration.positive().rotational().x()
-        )
-    }
-    else if desired_acceleration.rotational().x() < gsafety_max_acceleration.negative().rotational().x(){
-        desired_acceleration.rotational_mut().set_x(
-            gsafety_max_acceleration.negative().rotational().x()
-        )
-    }
 
-    if desired_acceleration.rotational().y() > gsafety_max_acceleration.positive().rotational().y(){
-        desired_acceleration.rotational_mut().set_y(
-            gsafety_max_acceleration.positive().rotational().y()
-        )
-    }
-    else if desired_acceleration.rotational().y() < gsafety_max_acceleration.negative().rotational().y(){
-        desired_acceleration.rotational_mut().set_y(
-            gsafety_max_acceleration.negative().rotational().y()
-        )
-    }
 
-    if desired_acceleration.rotational().z() > gsafety_max_acceleration.positive().rotational().z(){
-        desired_acceleration.rotational_mut().set_z(
-            gsafety_max_acceleration.positive().rotational().z()
+#[test]
+pub fn test_g_force_safety(){
+    let mut desired_acceleration: ControlAxis<Dimension3<f64>> = ControlAxis::new(
+        Dimension3::new(55.0, -55.0, 0.0),
+        Dimension3::new(0.0, 0.0, 0.0)
+    );
+    let gsafety_max_acceleration = AxisContribution::new(
+        ControlAxis::new(
+            Dimension3::default(50.0),
+            Dimension3::default(50.0)
+        ),
+        ControlAxis::new(
+            Dimension3::default(50.0),
+            Dimension3::default(50.0)
         )
-    }
-    else if desired_acceleration.rotational().z() < gsafety_max_acceleration.negative().rotational().z(){
-        desired_acceleration.rotational_mut().set_z(
-            gsafety_max_acceleration.negative().rotational().z()
-        )
-    }
+    );
+
+    desired_acceleration = process(&desired_acceleration, &gsafety_max_acceleration);
+
+    assert!((desired_acceleration.linear().x() - gsafety_max_acceleration.positive().linear().x()).abs() < 0.001);
+    assert!((desired_acceleration.linear().y() - gsafety_max_acceleration.negative().linear().y().neg()).abs() < 0.001);
 }
