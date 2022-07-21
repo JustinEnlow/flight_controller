@@ -1,10 +1,13 @@
 //! # Flight Control System(FCS)
 
-use std::ops::Add;
+use std::ops::{Add, Sub, Mul, Div, Neg};
 use game_utils::{
-    control_axis::ControlAxis,
-    dimension3::Dimension3
+    control_axis::{ControlAxis, AxisContribution},
+    dimension3::Dimension3,
+    toggle::Toggle,
 };
+use pid_controller::PID;
+use inertial_measurement::IMU;
 
 
 
@@ -16,71 +19,109 @@ pub mod propulsion_control;
 
 
 
-// typical behavior
 
-// get feedforward_desired_acceleration = if autonomous_mode.enabled{
-    // flight_controller::feedforward_controller::calculate_autonomous_mode_acceleration()
-// }
-// else{
-    // flight_controller::feedforward_controller::calculate_pilot_control_mode_acceleration()
-// }
-// get feedback_desired_accel = flight_controller::feedback_controller::calculate
-// sum both for desired_accel
+pub struct FlightControlSystem<T>{
+    //power: Toggle, 
+    linear_assist: Toggle, 
+    rotational_assist: Toggle, 
+    autonomous_mode: Toggle, 
+    max_velocity: ControlAxis<Dimension3<T>>,
+    imu: IMU<ControlAxis<Dimension3<T>>>,
+    gsafety: Toggle, 
+    gsafety_max_acceleration: ControlAxis<Dimension3<AxisContribution<T>>>,
+    available_acceleration: ControlAxis<Dimension3<AxisContribution<T>>>,
+    pid6dof: ControlAxis<Dimension3<PID<T>>>, 
+}
+impl<T> FlightControlSystem<T>
+    where T: Mul<Output = T>
+        + Div<Output = T>
+        + Add<Output = T>
+        + Sub<Output = T>
+        + Neg<Output = T>
+        + PartialOrd 
+        + Copy
+{
+    pub fn process(self: &mut Self, input: ControlAxis<Dimension3<T>>, delta_time: T, zero: T){
+        //if self.power.enabled() == false{return;}
 
-// if gsafety enabled, limit desired_accel to gsafe limits
+        let mut desired_acceleration = sum_acceleration(
+            if self.autonomous_mode.enabled(){
+                feedforward_controller::calculate_autonomous_mode_acceleration(
+                    &input,
+                    &self.imu.position(),
+                    &self.imu.velocity(),
+                    &self.max_velocity,
+                    &self.available_acceleration,
+                    delta_time,
+                )
+            }else{
+                feedforward_controller::calculate_pilot_control_mode_acceleration(
+                    &input,
+                    &self.linear_assist,
+                    &self.rotational_assist,
+                    &self.max_velocity,
+                    &self.imu.velocity(),
+                    &self.available_acceleration,
+                    delta_time,
+                    zero,
+                )
+            },
+            feedback_controller::calculate(
+                &ControlAxis::new(
+                    Dimension3::default(zero), 
+                    Dimension3::default(zero)
+                ), 
+                &ControlAxis::new(
+                    Dimension3::default(zero),
+                    Dimension3::default(zero)
+                ), 
+                &mut self.pid6dof, 
+                &self.available_acceleration,
+                delta_time, 
+                zero, 
+            )
+        );
 
-// send output to propulsion control
+        if self.gsafety.enabled(){
+            desired_acceleration = g_force_safety::process(
+                &desired_acceleration, 
+                &self.gsafety_max_acceleration
+            )
+        }
 
-    
+        let _ = propulsion_control::calculate_thruster_output(
+            &desired_acceleration, 
+            zero//mass
+        );
 
-    //should we be requesting propulsion control to calculate available acceleration here, instead of feeding that value in?
-    //no. we will calculate available acceleration only whenever the thruster suite is changed in some intentional way
-    //unintentional changes, such as thruster failure, can be dealt with elsewhere
+        /////////////////////////////////////////////////////////////////////////////
+        // propulsion_control_system
+        /////////////////////////////////////////////////////////////////////////////
+        //Once the desired linear and rotational accelerations are established from the combined feedforward
+        //and feedback control signals, the PCS must calculate the output of individual thrusters, as well as other
+        //devices tasked with generating motion, so that these accelerations will be achieved to within a
+        //reasonable degree of accuracy.
+        //propulsion_control::calculate_thruster_output(
+        //    &desired_acceleration,
+        //    thruster_suite,
+        //    mass,
+        //    zero,
+        //    output_thrust
+        //);
 
-    //let mut desired_acceleration = sum_acceleration(
-    //    if autonomous_mode.enabled(){
-    //        flight_controller::feedforward_controller::calculate_autonomous_mode_acceleration()
-    //    }else{
-    //        flight_controller::feedforward_controller::calculate_pilot_control_mode_acceleration()
-    //    },
-    //    feedback_controller::calculate(
-    //        //goal_position will be input if autonomous mode, or expected position/attitude as calculcated 
-    //        //by results of thruster output if in pilot controlled mode
-    //    )
-    //);
-
-    //if gsafety.enabled(){
-    //    g_force_safety::process(
-    //        &mut desired_acceleration,
-    //        gsafety_max_acceleration
-    //    );
-    //}
-
-    /////////////////////////////////////////////////////////////////////////////
-    // propulsion_control_system
-    /////////////////////////////////////////////////////////////////////////////
-    //Once the desired linear and rotational accelerations are established from the combined feedforward
-    //and feedback control signals, the PCS must calculate the output of individual thrusters, as well as other
-    //devices tasked with generating motion, so that these accelerations will be achieved to within a
-    //reasonable degree of accuracy.
-    //propulsion_control::calculate_thruster_output(
-    //    &desired_acceleration,
-    //    thruster_suite,
-    //    mass,
-    //    zero,
-    //    output_thrust
-    //);
-
-    /////////////////////////////////////////////////////////////////////////////
-    // calculate expected position from resultant thrusts/accelerations/velocities
-    /////////////////////////////////////////////////////////////////////////////
+        /////////////////////////////////////////////////////////////////////////////
+        // calculate expected position from resultant thrusts/accelerations/velocities
+        /////////////////////////////////////////////////////////////////////////////
+    }
+}
 
 
 
 
 
 pub fn sum_acceleration<T: Copy + Add<Output = T>>(
-    feedforward: ControlAxis<Dimension3<T>>, feedback: ControlAxis<Dimension3<T>>
+    feedforward: ControlAxis<Dimension3<T>>, 
+    feedback: ControlAxis<Dimension3<T>>,
 ) -> ControlAxis<Dimension3<T>>{
     ControlAxis::new(
         Dimension3::new(

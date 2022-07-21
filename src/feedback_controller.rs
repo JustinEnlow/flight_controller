@@ -7,9 +7,9 @@ pub fn calculate<T>(
     goal_position: &ControlAxis<Dimension3<T>>,
     position: &ControlAxis<Dimension3<T>>,
     pid6dof: &mut ControlAxis<Dimension3<PID<T>>>,
+    available_acceleration: &ControlAxis<Dimension3<AxisContribution<T>>>,
     delta_time: T,
     zero: T,
-    available_acceleration: &ControlAxis<Dimension3<AxisContribution<T>>>,
 ) -> ControlAxis<Dimension3<T>>
     where T: PartialOrd 
     + Neg<Output = T>

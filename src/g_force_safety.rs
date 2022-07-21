@@ -58,31 +58,5 @@ pub fn process<T>(
     )
 }
 
-
-
-
-
-#[test]
-pub fn test_g_force_safety(){
-    let mut desired_acceleration: ControlAxis<Dimension3<f64>> = ControlAxis::new(
-        Dimension3::new(55.0, -55.0, 0.0),
-        Dimension3::new(0.0, 0.0, 0.0)
-    );
-    let gsafety_max_acceleration = ControlAxis::new(
-        Dimension3::new(
-            AxisContribution::new(50.0, 50.0), 
-            AxisContribution::new(50.0, 50.0), 
-            AxisContribution::new(50.0, 50.0)
-        ), 
-        Dimension3::new(
-            AxisContribution::new(50.0, 50.0), 
-            AxisContribution::new(50.0, 50.0), 
-            AxisContribution::new(50.0, 50.0)
-        )
-    );
-
-    desired_acceleration = process(&desired_acceleration, &gsafety_max_acceleration);
-
-    assert!((desired_acceleration.linear().x() - gsafety_max_acceleration.linear().x().positive()).abs() < 0.001);
-    assert!((desired_acceleration.linear().y() - (-gsafety_max_acceleration.linear().y().negative())).abs() < 0.001);
-}
+// clamping already tested in clamp module
+// no need to retest here.

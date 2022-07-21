@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 pid_controller = {path = "../pid_controller"} #{git = "https://github.com/JustinEnlow/pid_controller"}
-# inertial_measurement = {path = "../inertial_measurement"}
+inertial_measurement = {path = "../inertial_measurement"}
 # propulsion_control = {git = "https://github.com/JustinEnlow/propulsion_control"}
 # flight_assist = {path = "../flight_assist"}
 game_utils = {path = "../game_utils"}
