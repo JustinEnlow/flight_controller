@@ -22,8 +22,7 @@ pub fn calculate<T>(
     ControlAxis::new(
         Dimension3::new(
             clamp::cmp_mul_assym(
-                PID::calculate(
-                    &mut pid6dof.linear_mut().x_mut(), 
+                pid6dof.linear_mut().x_mut().calculate(
                     goal_position.linear().x(), 
                     position.linear().x(), 
                     delta_time
@@ -33,8 +32,7 @@ pub fn calculate<T>(
                 available_acceleration.linear().x().negative()
             ), 
             clamp::cmp_mul_assym(
-                PID::calculate(
-                    &mut pid6dof.linear_mut().y_mut(), 
+                pid6dof.linear_mut().y_mut().calculate(
                     goal_position.linear().y(), 
                     position.linear().y(), 
                     delta_time
@@ -44,8 +42,7 @@ pub fn calculate<T>(
                 available_acceleration.linear().y().negative()
             ), 
             clamp::cmp_mul_assym(
-                PID::calculate(
-                    &mut pid6dof.linear_mut().z_mut(), 
+                pid6dof.linear_mut().z_mut().calculate(
                     goal_position.linear().z(), 
                     position.linear().z(), 
                     delta_time
@@ -57,8 +54,7 @@ pub fn calculate<T>(
         ),
         Dimension3::new(
             clamp::cmp_mul_assym(
-                PID::calculate(
-                    &mut pid6dof.rotational_mut().x_mut(), 
+                pid6dof.rotational_mut().x_mut().calculate(
                     goal_position.rotational().x(), 
                     position.rotational().x(), 
                     delta_time
@@ -68,8 +64,7 @@ pub fn calculate<T>(
                 available_acceleration.rotational().x().negative()
             ), 
             clamp::cmp_mul_assym(
-                PID::calculate(
-                    &mut pid6dof.rotational_mut().y_mut(), 
+                pid6dof.rotational_mut().y_mut().calculate(
                     goal_position.rotational().y(), 
                     position.rotational().y(), 
                     delta_time
@@ -79,8 +74,7 @@ pub fn calculate<T>(
                 available_acceleration.rotational().y().negative()
             ), 
             clamp::cmp_mul_assym(
-                PID::calculate(
-                    &mut pid6dof.rotational_mut().z_mut(), 
+                pid6dof.rotational_mut().z_mut().calculate(
                     goal_position.rotational().z(), 
                     position.rotational().z(), 
                     delta_time

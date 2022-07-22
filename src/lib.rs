@@ -1,5 +1,4 @@
 //! # Flight Control System(FCS)
-
 use std::ops::{Add, Sub, Mul, Div, Neg};
 use game_utils::{
     control_axis::{ControlAxis, AxisContribution},
@@ -7,8 +6,6 @@ use game_utils::{
     toggle::Toggle,
 };
 use pid_controller::PID;
-use inertial_measurement::IMU;
-
 
 
 pub mod feedback_controller;
@@ -17,20 +14,19 @@ pub mod g_force_safety;
 pub mod propulsion_control;
 
 
-
-
-
 pub struct FlightControlSystem<T>{
     //power: Toggle, 
     linear_assist: Toggle, 
     rotational_assist: Toggle, 
     autonomous_mode: Toggle, 
     max_velocity: ControlAxis<Dimension3<T>>,
-    imu: IMU<ControlAxis<Dimension3<T>>>,
+    velocity: ControlAxis<Dimension3<T>>,
+    position: ControlAxis<Dimension3<T>>,
     gsafety: Toggle, 
     gsafety_max_acceleration: ControlAxis<Dimension3<AxisContribution<T>>>,
     available_acceleration: ControlAxis<Dimension3<AxisContribution<T>>>,
     pid6dof: ControlAxis<Dimension3<PID<T>>>, 
+    //thruster_suite: &'a[ThrusterMountPoint<T>],
 }
 impl<T> FlightControlSystem<T>
     where T: Mul<Output = T>
@@ -41,15 +37,15 @@ impl<T> FlightControlSystem<T>
         + PartialOrd 
         + Copy
 {
-    pub fn process(self: &mut Self, input: ControlAxis<Dimension3<T>>, delta_time: T, zero: T){
+    pub fn process(&mut self, input: ControlAxis<Dimension3<T>>, delta_time: T, zero: T){
         //if self.power.enabled() == false{return;}
 
-        let mut desired_acceleration = sum_acceleration(
+        let mut desired_acceleration = game_utils::sum_d3_control_axes(
             if self.autonomous_mode.enabled(){
                 feedforward_controller::calculate_autonomous_mode_acceleration(
                     &input,
-                    &self.imu.position(),
-                    &self.imu.velocity(),
+                    &self.position,
+                    &self.velocity,
                     &self.max_velocity,
                     &self.available_acceleration,
                     delta_time,
@@ -60,7 +56,7 @@ impl<T> FlightControlSystem<T>
                     &self.linear_assist,
                     &self.rotational_assist,
                     &self.max_velocity,
-                    &self.imu.velocity(),
+                    &self.velocity,
                     &self.available_acceleration,
                     delta_time,
                     zero,
@@ -119,20 +115,11 @@ impl<T> FlightControlSystem<T>
 
 
 
-pub fn sum_acceleration<T: Copy + Add<Output = T>>(
-    feedforward: ControlAxis<Dimension3<T>>, 
-    feedback: ControlAxis<Dimension3<T>>,
-) -> ControlAxis<Dimension3<T>>{
-    ControlAxis::new(
-        Dimension3::new(
-            feedforward.linear().x() + feedback.linear().x(), 
-            feedforward.linear().y() + feedback.linear().y(), 
-            feedforward.linear().z() + feedback.linear().z(),
-        ), 
-        Dimension3::new(
-            feedforward.rotational().x() + feedback.rotational().x(), 
-            feedforward.rotational().y() + feedback.rotational().y(), 
-            feedforward.rotational().z() + feedback.rotational().z(),
-        ),
-    )
+// when is it appropriate to place tests here instead of in the code's module
+#[cfg(test)]
+mod tests{
+    // use
+
+    #[test]
+    fn some_test(){}
 }

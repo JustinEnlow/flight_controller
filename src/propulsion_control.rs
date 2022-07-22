@@ -1,7 +1,7 @@
 //! #Propulsion Control System
 
 use game_utils::{control_axis::{ControlAxis, AxisContribution}, dimension3::Dimension3};
-use std::ops::{Mul, Div, Add, Neg};
+use std::ops::{Mul, Div, Add};
 
 
 // we need to ensure that the negative component of available acceleration does not use values with a "-" sign. 
@@ -21,23 +21,23 @@ use std::ops::{Mul, Div, Add, Neg};
 
 #[derive(PartialEq)]
 pub enum ThrustDirection{
-    Forward,
-    Backward,
-    Up,
-    Down,
-    Left,
-    Right,
-    YawRight,
-    YawLeft,
-    RollRight,
-    RollLeft,
-    PitchUp,
-    PitchDown
+    LinXPos, 
+    LinXNeg,
+    LinYPos, 
+    LinYNeg,
+    LinZPos, 
+    LinZNeg,
+    RotXPos, 
+    RotXNeg,
+    RotYPos, 
+    RotYNeg,
+    RotZPos, 
+    RotZNeg,
 }
 
 
 #[derive(Clone, Copy, PartialEq, PartialOrd)]
-pub enum ThrusterSize{  // need to impl PartialOrd and PartialEq?
+pub enum ThrusterSize{
     Small,
     Medium,
     Large
@@ -54,43 +54,48 @@ impl<T> Thruster<T>
     where T: Copy
 {
     pub fn new(max_thrust: T, size: ThrusterSize) -> Self{Self{max_thrust, size}}
-    pub fn max_thrust(self: &Self) -> T{self.max_thrust}
-    pub fn size(self: &Self) -> ThrusterSize{self.size}
+    pub fn max_thrust(&self) -> T{self.max_thrust}
+    pub fn size(&self) -> ThrusterSize{self.size}
 }
+
+#[derive(Debug, PartialEq)]
+pub struct MountPointError;
+impl std::fmt::Display for MountPointError{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result{
+        write!(f, "Tried to attach a thruster that is too large for mount point.")
+    }
+}
+impl std::error::Error for MountPointError{}
 
 pub struct ThrusterMountPoint<'a, T: Copy>{
     // is Option so that having no thruster attached can be represented
     attached_thruster: Option<Thruster<T>>,
     // a list of directions a thruster mounted at this mount point can contribute thrust to
-    thrust_direction: &'a[ThrustDirection],//Vec<ThrustDirection>,
+    thrust_direction: &'a[ThrustDirection],
     max_thruster_size: ThrusterSize,
+    // mount_location: ControlAxis<Dimension3<T>>   // relative to ship center of mass?     // used to determine moment of inertia?
 }
 impl<'a, T> ThrusterMountPoint<'a, T>
     where T: Copy
 {
     pub fn new(
         attached_thruster: Option<Thruster<T>>,
-        thrust_direction: &'a[ThrustDirection],//Vec<ThrustDirection>, 
-        max_thruster_size: ThrusterSize
+        thrust_direction: &'a[ThrustDirection],
+        max_thruster_size: ThrusterSize,
     ) -> Self{
-        Self{
-            attached_thruster,
-            thrust_direction,
-            max_thruster_size
-        }
+        Self{attached_thruster, thrust_direction, max_thruster_size,}
     }
-    pub fn attached_thruster(self: &Self) -> &Option<Thruster<T>>{&self.attached_thruster}
-    pub fn change_thruster(self: &mut Self, thruster: Thruster<T>) -> Result<(), ()>{
+    pub fn attached_thruster(&self) -> &Option<Thruster<T>>{&self.attached_thruster}
+    pub fn change_thruster(&mut self, thruster: Thruster<T>) -> Result<(), MountPointError/*()*/>{
         if thruster.size() > self.max_thruster_size{
-            return Err(())      // returning empty tuple because there is only one way to fail, and no needed associated info
+            return Err(MountPointError/*()*/)
         }
-        
         self.attached_thruster = Some(thruster);
 
         Ok(())
     }
-    pub fn thrust_direction(self: &Self) -> &'a[ThrustDirection]{self.thrust_direction}
-    pub fn max_thruster_size(self: &Self) -> ThrusterSize{self.max_thruster_size}
+    pub fn thrust_direction(&self) -> &'a[ThrustDirection]{self.thrust_direction}
+    pub fn max_thruster_size(&self) -> ThrusterSize{self.max_thruster_size}
 }
 
 
@@ -100,86 +105,92 @@ impl<'a, T> ThrusterMountPoint<'a, T>
 /// Calculates a sum available thrust for each of 6 different axial directions, from a given set of thrusters.
 /// intended to be called on instantiation, and/or when thrusters are added/replaced, not on every frame update.
 pub fn calculate_available_thrust<T>(
-    // does available_thrust need to be passed in as &mut
-    // could this be calculated and returned from the function instead?
     thruster_mount_points: &[ThrusterMountPoint<T>],
     zero_value: T
 ) -> ControlAxis<Dimension3<AxisContribution<T>>>
-    where T: Copy + Add<Output = T> + Neg<Output = T> + PartialOrd
+    where T: Copy + Add<Output = T>
 {
     let mut available_thrust = ControlAxis::new(
         Dimension3::default(AxisContribution::new(zero_value, zero_value)),
         Dimension3::default(AxisContribution::new(zero_value, zero_value))
     );
-    
-    // determine max available thrust for each movable direction
 
-    // add up max_thrust from each thruster to a sum thrust for each axis it can contribute to
-    for thruster_mount_point in /*&*/thruster_mount_points{
-        // if mount point has an attached thruster...
+    for thruster_mount_point in thruster_mount_points{
         match thruster_mount_point.attached_thruster(){
             Some(thruster) => {
-                // and if it can contribute thrust in desired direction, add its max thrust to the max available thrust for that direction
-                for thrust_direction in thruster_mount_point.thrust_direction(){
-                    match thrust_direction{
-                        ThrustDirection::Right => {
-                            let sum = available_thrust.linear().x().positive() + thruster.max_thrust();
-                            available_thrust.linear_mut().x_mut().set_positive(sum);
-                        },
-                        ThrustDirection::Left => {
-                            let sum = available_thrust.linear().x().negative() + thruster.max_thrust();
-                            available_thrust.linear_mut().x_mut().set_negative(sum);
-                        },
-                        ThrustDirection::Up => {
-                            let sum = available_thrust.linear().y().positive() + thruster.max_thrust();
-                            available_thrust.linear_mut().y_mut().set_positive(sum);
-                        },
-                        ThrustDirection::Down => {
-                            let sum = available_thrust.linear().y().negative() + thruster.max_thrust();
-                            available_thrust.linear_mut().y_mut().set_negative(sum);
-                        },
-                        ThrustDirection::Forward => {
-                            let sum = available_thrust.linear().z().positive() + thruster.max_thrust();
-                            available_thrust.linear_mut().z_mut().set_positive(sum);
-                        },
-                        ThrustDirection::Backward => {
-                            let sum = available_thrust.linear().z().negative() + thruster.max_thrust();
-                            available_thrust.linear_mut().z_mut().set_negative(sum);
-                        },
-                        ThrustDirection::PitchUp => {
-                            let sum = available_thrust.rotational().x().positive() + thruster.max_thrust();
-                            available_thrust.rotational_mut().x_mut().set_positive(sum);
-                        },
-                        ThrustDirection::PitchDown => {
-                            let sum = available_thrust.rotational().x().negative() + thruster.max_thrust();
-                            available_thrust.rotational_mut().x_mut().set_negative(sum);
-                        },
-                        ThrustDirection::YawRight => {
-                            let sum = available_thrust.rotational().y().positive() + thruster.max_thrust();
-                            available_thrust.rotational_mut().y_mut().set_positive(sum);
-                        },
-                        ThrustDirection::YawLeft => {
-                            let sum = available_thrust.rotational().y().negative() + thruster.max_thrust();
-                            available_thrust.rotational_mut().y_mut().set_negative(sum);
-                        },
-                        ThrustDirection::RollRight => {
-                            let sum = available_thrust.rotational().z().positive() + thruster.max_thrust();
-                            available_thrust.rotational_mut().z_mut().set_positive(sum);
-                        },
-                        ThrustDirection::RollLeft => {
-                            let sum = available_thrust.rotational().z().negative() + thruster.max_thrust();
-                            available_thrust.rotational_mut().z_mut().set_negative(sum);
-                        },
-                    }
-                }
+                add_available_thrust_for_thrust_direction(
+                    thruster, 
+                    thruster_mount_point, 
+                    &mut available_thrust
+                )
             },
-            None => {
-                //do nothing
-            }
+            None => {/*do nothing*/}
         }
     }
 
     available_thrust
+}
+
+fn add_available_thrust_for_thrust_direction<T>(    //rename? sum available thrust per direction?
+    thruster: &Thruster<T>, 
+    thruster_mount_point: &ThrusterMountPoint<T>,
+    available_thrust: &mut ControlAxis<Dimension3<AxisContribution<T>>>,
+)
+    where T: Add<Output = T> + Copy
+{
+    // if thruster can contribute thrust in desired direction, add its max thrust to the max available thrust for that direction
+    for thrust_direction in thruster_mount_point.thrust_direction(){
+        match thrust_direction{
+            ThrustDirection::LinXPos => {
+                let sum = available_thrust.linear().x().positive() + thruster.max_thrust();
+                available_thrust.linear_mut().x_mut().set_positive(sum);
+            },
+            ThrustDirection::LinXNeg => {
+                let sum = available_thrust.linear().x().negative() + thruster.max_thrust();
+                available_thrust.linear_mut().x_mut().set_negative(sum);
+            },
+            ThrustDirection::LinYPos => {
+                let sum = available_thrust.linear().y().positive() + thruster.max_thrust();
+                available_thrust.linear_mut().y_mut().set_positive(sum);
+            },
+            ThrustDirection::LinYNeg => {
+                let sum = available_thrust.linear().y().negative() + thruster.max_thrust();
+                available_thrust.linear_mut().y_mut().set_negative(sum);
+            },
+            ThrustDirection::LinZPos => {
+                let sum = available_thrust.linear().z().positive() + thruster.max_thrust();
+                available_thrust.linear_mut().z_mut().set_positive(sum);
+            },
+            ThrustDirection::LinZNeg => {
+                let sum = available_thrust.linear().z().negative() + thruster.max_thrust();
+                available_thrust.linear_mut().z_mut().set_negative(sum);
+            },
+            ThrustDirection::RotXPos => {
+                let sum = available_thrust.rotational().x().positive() + thruster.max_thrust();
+                available_thrust.rotational_mut().x_mut().set_positive(sum);
+            },
+            ThrustDirection::RotXNeg => {
+                let sum = available_thrust.rotational().x().negative() + thruster.max_thrust();
+                available_thrust.rotational_mut().x_mut().set_negative(sum);
+            },
+            ThrustDirection::RotYPos => {
+                let sum = available_thrust.rotational().y().positive() + thruster.max_thrust();
+                available_thrust.rotational_mut().y_mut().set_positive(sum);
+            },
+            ThrustDirection::RotYNeg => {
+                let sum = available_thrust.rotational().y().negative() + thruster.max_thrust();
+                available_thrust.rotational_mut().y_mut().set_negative(sum);
+            },
+            ThrustDirection::RotZPos => {
+                let sum = available_thrust.rotational().z().positive() + thruster.max_thrust();
+                available_thrust.rotational_mut().z_mut().set_positive(sum);
+            },
+            ThrustDirection::RotZNeg => {
+                let sum = available_thrust.rotational().z().negative() + thruster.max_thrust();
+                available_thrust.rotational_mut().z_mut().set_negative(sum);
+            },
+        }
+    }
 }
 
 
@@ -208,16 +219,16 @@ pub fn calculate_available_acceleration<T>(
         ),
         Dimension3::new(
             AxisContribution::new(
-                available_thrust.rotational().x().positive() / mass/*moment of inertia?*/,
-                available_thrust.rotational().x().negative() / mass/*moment of inertia?*/
+                available_thrust.rotational().x().positive() / mass/*is this formula correct for rotational accel?*/,
+                available_thrust.rotational().x().negative() / mass/*is this formula correct for rotational accel?*/
             ),
             AxisContribution::new(
-                available_thrust.rotational().y().positive() / mass/*moment of inertia?*/,
-                available_thrust.rotational().y().negative() / mass/*moment of inertia?*/
+                available_thrust.rotational().y().positive() / mass/*is this formula correct for rotational accel?*/,
+                available_thrust.rotational().y().negative() / mass/*is this formula correct for rotational accel?*/
             ),
             AxisContribution::new(
-                available_thrust.rotational().z().positive() / mass/*moment of inertia?*/,
-                available_thrust.rotational().z().negative() / mass/*moment of inertia?*/
+                available_thrust.rotational().z().positive() / mass/*is this formula correct for rotational accel?*/,
+                available_thrust.rotational().z().negative() / mass/*is this formula correct for rotational accel?*/
             )
         )
     )
@@ -262,7 +273,7 @@ pub fn calculate_thruster_output<T>(
 
 
 #[test]
-pub fn test_thruster_size_enum_comparison(){
+fn test_thruster_size_enum_comparison(){
     assert!(ThrusterSize::Small < ThrusterSize::Medium);
     assert!(ThrusterSize::Small < ThrusterSize::Large);
 
@@ -278,72 +289,36 @@ pub fn test_thruster_size_enum_comparison(){
 }
 
 #[test]
-pub fn test_calculate_available_thrust(){
+fn test_calculate_available_thrust(){
     let thruster_suite: [ThrusterMountPoint<f32>; 6] = [
         ThrusterMountPoint::new(
-            Some(
-                Thruster::new(
-                    20_000.0,
-                    ThrusterSize::Small
-                )
-            ),
-            &[ThrustDirection::Right],
-            //&Vec::from(ThrustDirection::Right),
+            Some(Thruster::new(20_000.0, ThrusterSize::Small)),
+            &[ThrustDirection::LinXPos],
             ThrusterSize::Small
         ),
         ThrusterMountPoint::new(
-            Some(
-                Thruster::new(
-                    20_000.0,
-                    ThrusterSize::Small
-                )
-            ),
-            &[ThrustDirection::Left],
-            //&Vec::from(ThrustDirection::Left),
+            Some(Thruster::new(20_000.0, ThrusterSize::Small)),
+            &[ThrustDirection::LinXNeg],
             ThrusterSize::Small
         ),
         ThrusterMountPoint::new(
-            Some(
-                Thruster::new(
-                    20_000.0,
-                    ThrusterSize::Small
-                )
-            ),
-            &[ThrustDirection::Up],
-            //&Vec::from(ThrustDirection::Up),
+            Some(Thruster::new(20_000.0, ThrusterSize::Small)),
+            &[ThrustDirection::LinYPos],
             ThrusterSize::Small
         ),
         ThrusterMountPoint::new(
-            Some(
-                Thruster::new(
-                    20_000.0,
-                    ThrusterSize::Small
-                )
-            ),
-            &[ThrustDirection::Down],
-            //&Vec::from(ThrustDirection::Down),
+            Some(Thruster::new(20_000.0, ThrusterSize::Small)),
+            &[ThrustDirection::LinYNeg],
             ThrusterSize::Small
         ),
         ThrusterMountPoint::new(
-            Some(
-                Thruster::new(
-                    20_000.0,
-                    ThrusterSize::Small
-                )
-            ),
-            &[ThrustDirection::Forward],
-            //&Vec::from(ThrustDirection::Forward),
+            Some(Thruster::new(20_000.0, ThrusterSize::Small)),
+            &[ThrustDirection::LinZPos],
             ThrusterSize::Small
         ),
         ThrusterMountPoint::new(
-            Some(
-                Thruster::new(
-                    20_000.0,
-                    ThrusterSize::Small
-                )
-            ),
-            &[ThrustDirection::Backward],
-            //&Vec::from(ThrustDirection::Backward),
+            Some(Thruster::new(20_000.0, ThrusterSize::Small)),
+            &[ThrustDirection::LinZNeg],
             ThrusterSize::Small
         )
     ];
@@ -384,7 +359,7 @@ pub fn test_calculate_available_thrust(){
 }
 
 #[test]
-pub fn test_calculate_available_acceleration(){
+fn test_calculate_available_acceleration(){
     let available_thrust = ControlAxis::new(
         Dimension3::new(
             AxisContribution::new(20_000.0, 20_000.0),
