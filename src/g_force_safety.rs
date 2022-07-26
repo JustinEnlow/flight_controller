@@ -8,7 +8,7 @@
 use game_utils::dimension3::Dimension3;
 use game_utils::control_axis::{ControlAxis, AxisContribution};
 use std::ops::Neg;
-use game_utils::clamp;
+use num;
 
 
 
@@ -16,44 +16,44 @@ use game_utils::clamp;
 
 pub fn process<T>(
     desired_acceleration: &ControlAxis<Dimension3<T>>,
-    gsafety_max_acceleration: &ControlAxis<Dimension3<AxisContribution<T>>>,    //ClampedDimension3 doesn't seem to be needed...verify later
+    gsafety_max_acceleration: &ControlAxis<Dimension3<AxisContribution<T>>>,
 ) -> ControlAxis<Dimension3<T>>
     where T: Copy + PartialOrd + Neg<Output = T>
 {
     ControlAxis::new(
         Dimension3::new(
-            clamp::clamp_assym(
+            num::clamp(
                 desired_acceleration.linear().x(), 
-                gsafety_max_acceleration.linear().x().positive(),
-                -(gsafety_max_acceleration.linear().x().negative())
-            ), 
-            clamp::clamp_assym(
+                -(gsafety_max_acceleration.linear().x().negative()), 
+                gsafety_max_acceleration.linear().x().positive()
+            ),
+            num::clamp(
                 desired_acceleration.linear().y(), 
-                gsafety_max_acceleration.linear().y().positive(),
-                -(gsafety_max_acceleration.linear().y().negative())
+                -(gsafety_max_acceleration.linear().y().negative()), 
+                gsafety_max_acceleration.linear().y().positive()
             ), 
-            clamp::clamp_assym(
+            num::clamp(
                 desired_acceleration.linear().z(), 
-                gsafety_max_acceleration.linear().z().positive(),
-                -(gsafety_max_acceleration.linear().z().negative())
-            )
+                -(gsafety_max_acceleration.linear().z().negative()), 
+                gsafety_max_acceleration.linear().z().positive()
+            ),
         ),
         Dimension3::new(
-            clamp::clamp_assym(
+            num::clamp(
                 desired_acceleration.rotational().x(), 
-                gsafety_max_acceleration.rotational().x().positive(),
-                -(gsafety_max_acceleration.rotational().x().negative())
+                -(gsafety_max_acceleration.rotational().x().negative()), 
+                gsafety_max_acceleration.rotational().x().positive()
             ),
-            clamp::clamp_assym(
+            num::clamp(
                 desired_acceleration.rotational().y(), 
-                gsafety_max_acceleration.rotational().y().positive(),
-                -(gsafety_max_acceleration.rotational().y().negative())
+                -(gsafety_max_acceleration.rotational().y().negative()), 
+                gsafety_max_acceleration.rotational().y().positive()
             ),
-            clamp::clamp_assym(
+            num::clamp(
                 desired_acceleration.rotational().z(), 
-                gsafety_max_acceleration.rotational().z().positive(),
-                -(gsafety_max_acceleration.rotational().z().negative())
-            )
+                -(gsafety_max_acceleration.rotational().z().negative()), 
+                gsafety_max_acceleration.rotational().z().positive()
+            ), 
         )
     )
 }

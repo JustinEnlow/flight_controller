@@ -1,7 +1,9 @@
 //! some documentation ...
 use std::ops::{Mul, Div, Add, Sub, Neg};
 use std::cmp::PartialOrd;
-use game_utils::{control_axis::{ControlAxis, AxisContribution}, toggle::Toggle, dimension3::Dimension3, clamp};
+use game_utils::{control_axis::{ControlAxis, AxisContribution}, toggle::Toggle, dimension3::Dimension3,};
+use num::Float;
+use crate::utils;
 
 
 
@@ -21,6 +23,7 @@ pub fn calculate_autonomous_mode_acceleration<T>(
     + Sub<Output = T>
     + Neg<Output = T>
     + PartialOrd 
+    + Float
     + Copy
 {
     ControlAxis::new(
@@ -93,17 +96,21 @@ fn calculate_axis_autonomous_mode<T>(
     + Sub<Output = T> 
     + Neg<Output = T>
     + PartialOrd 
+    + Float
     + Copy 
 {
     let delta_position = goal_position - position;
-    let desired_velocity = clamp::clamp(
-        delta_position / delta_time, 
+    let desired_velocity = num::clamp(
+        delta_position / delta_time,
+        -(max_velocity), 
         max_velocity
     );
-    clamp::clamp_assym(
-        velocity_control(desired_velocity, velocity, delta_time), 
-        available_acceleration.positive(),
-        -(available_acceleration.negative())
+    num::clamp(
+        velocity_control(
+            desired_velocity, velocity, delta_time
+        ), 
+        -(available_acceleration.negative()), 
+        available_acceleration.positive()
     )
 }
 
@@ -117,7 +124,6 @@ pub fn calculate_pilot_control_mode_acceleration<T>(
     velocity: &ControlAxis<Dimension3<T>>,
     available_acceleration: &ControlAxis<Dimension3<AxisContribution<T>>>,
     delta_time: T,
-    zero: T,
 ) -> ControlAxis<Dimension3<T>>
     where T: Mul<Output = T>
     + Div<Output = T>
@@ -125,6 +131,7 @@ pub fn calculate_pilot_control_mode_acceleration<T>(
     + Sub<Output = T>
     + Neg<Output = T>
     + PartialOrd 
+    + Float
     + Copy
 {
     ControlAxis::new(
@@ -136,7 +143,6 @@ pub fn calculate_pilot_control_mode_acceleration<T>(
                 velocity.linear().x(), 
                 available_acceleration.linear().x(),
                 delta_time, 
-                zero,
             ),
             calculate_axis_pilot_control_mode(
                 linear_assist.enabled(), 
@@ -145,7 +151,6 @@ pub fn calculate_pilot_control_mode_acceleration<T>(
                 velocity.linear().y(), 
                 available_acceleration.linear().y(),
                 delta_time, 
-                zero,
             ),
             calculate_axis_pilot_control_mode(
                 linear_assist.enabled(), 
@@ -154,7 +159,6 @@ pub fn calculate_pilot_control_mode_acceleration<T>(
                 velocity.linear().z(), 
                 available_acceleration.linear().z(),
                 delta_time, 
-                zero,
             )
         ), 
         Dimension3::new(
@@ -165,7 +169,6 @@ pub fn calculate_pilot_control_mode_acceleration<T>(
                 velocity.rotational().x(), 
                 available_acceleration.rotational().x(),
                 delta_time, 
-                zero,
             ),
             calculate_axis_pilot_control_mode(
                 rotational_assist.enabled(), 
@@ -174,7 +177,6 @@ pub fn calculate_pilot_control_mode_acceleration<T>(
                 velocity.rotational().y(), 
                 available_acceleration.rotational().y(),
                 delta_time, 
-                zero,
             ),
             calculate_axis_pilot_control_mode(
                 rotational_assist.enabled(), 
@@ -183,7 +185,6 @@ pub fn calculate_pilot_control_mode_acceleration<T>(
                 velocity.rotational().z(), 
                 available_acceleration.rotational().z(),
                 delta_time, 
-                zero,
             )
         )
     )
@@ -198,7 +199,6 @@ fn calculate_axis_pilot_control_mode<T>(
     velocity: T, 
     available_acceleration: AxisContribution<T>,
     delta_time: T, 
-    zero: T,
 ) -> T
     where T: Mul<Output = T> 
     + Div<Output = T> 
@@ -206,24 +206,23 @@ fn calculate_axis_pilot_control_mode<T>(
     + Sub<Output = T> 
     + Neg<Output = T> 
     + PartialOrd 
+    + Float
     + Copy
 {
     if assist_enabled{
-        clamp::clamp_assym(
+        num::clamp(
             velocity_control(
                 input * max_velocity, velocity, delta_time
-            ), 
-            available_acceleration.positive(),
-            //negated due to how clamp_assym works
-            -(available_acceleration.negative())
+            ),
+            -(available_acceleration.negative()),
+            available_acceleration.positive()
         )
     }
     else{
-        clamp::cmp_mul_assym(
+        utils::multiply_compare_zero(
             acceleration_control(
-                velocity, max_velocity, input, zero
+                velocity, max_velocity, input
             ), 
-            zero, 
             available_acceleration.positive(),
             available_acceleration.negative()
         )
@@ -232,22 +231,19 @@ fn calculate_axis_pilot_control_mode<T>(
 
 
 
-// velocity = change in position / change in time
-// acceleration = change in velocity / change in time
-// jerk = change in acceleration / change in time
 fn velocity_control<T>(desired_velocity: T, velocity: T, delta_time: T) -> T
-    where T: Div<Output = T> + Sub<Output = T> + Neg<Output = T> + PartialOrd + Copy 
+    where T: Div<Output = T> + Sub<Output = T> + Neg<Output = T> + PartialOrd + Copy + Float
 {
     let delta_velocity = desired_velocity - velocity;
     delta_velocity / delta_time
 }
 
-fn acceleration_control<T>(velocity: T, max_velocity: T, input: T, zero: T) -> T
-    where T: Neg<Output = T> + PartialOrd + Copy
+fn acceleration_control<T>(velocity: T, max_velocity: T, input: T) -> T
+    where T: Neg<Output = T> + PartialOrd + Copy + Float
 {
-    if (velocity >= max_velocity && input > zero) 
-    || (velocity <= -max_velocity && input < zero){
-        zero
+    if (velocity >= max_velocity && input > num::zero()) 
+    || (velocity <= -max_velocity && input < num::zero()){
+        num::zero()
     }
     else{input}
 }
@@ -288,29 +284,29 @@ fn velocity_control_output_is_valid_with_zero_input(){
 // acceleration control
 #[test]
 fn acceleration_control_clamps_at_max_velocity(){
-    let output: f64 = acceleration_control(55.0, 50.0, 1.0, 0.0);
+    let output: f64 = acceleration_control(55.0, 50.0, 1.0/*, 0.0*/);
     assert!((output - 0.0).abs() < 0.001);
 }
 #[test]
 fn acceleration_control_clamps_at_negative_max_velocity(){
-    let output: f64 = acceleration_control(-55.0, 50.0, -1.0, 0.0);
+    let output: f64 = acceleration_control(-55.0, 50.0, -1.0/*, 0.0*/);
     assert!((output - 0.0).abs() < 0.001);
 }
 #[test]
 fn acceleration_control_output_is_valid_with_positive_input(){
-    let output: f64 = acceleration_control(0.0, 50.0, 1.0, 0.0);
+    let output: f64 = acceleration_control(0.0, 50.0, 1.0/*, 0.0*/);
     assert!(output.is_sign_positive());
     assert!(output > 0.0);
 }
 #[test]
 fn acceleration_control_output_is_valid_with_negative_input(){
-    let output: f64 = acceleration_control(0.0, 50.0, -1.0, 0.0);
+    let output: f64 = acceleration_control(0.0, 50.0, -1.0/*, 0.0*/);
     assert!(output.is_sign_negative());
     assert!(output < 0.0);
 }
 #[test]
 fn acceleration_control_output_is_valid_with_zero_input(){
-    let output: f64 = acceleration_control(0.0, 50.0, 0.0, 0.0);
+    let output: f64 = acceleration_control(0.0, 50.0, 0.0/*, 0.0*/);
     assert!((output - 0.0).abs() < 0.001);
 }
 
@@ -327,7 +323,7 @@ fn axis_pilot_control_output_valid_when_input_positive_and_assist_enabled(){
         0.0, 
         AxisContribution::new(1.0, 1.0), 
         1.0, 
-        0.0
+        //0.0
     );
     assert!(output.is_sign_positive());
     assert!(output > 0.0);
@@ -341,7 +337,7 @@ fn axis_pilot_control_output_valid_when_input_positive_and_assist_disabled(){
         0.0, 
         AxisContribution::new(1.0, 1.0), 
         1.0, 
-        0.0
+        //0.0
     );
     assert!(output.is_sign_positive());
     assert!(output > 0.0);
@@ -355,7 +351,7 @@ fn axis_pilot_control_output_valid_when_input_negative_and_assist_enabled(){
         0.0, 
         AxisContribution::new(1.0, 1.0), 
         1.0, 
-        0.0
+        //0.0
     );
     assert!(output.is_sign_negative());
     assert!(output < 0.0);
@@ -369,7 +365,7 @@ fn axis_pilot_control_output_valid_when_input_negative_and_assist_disabled(){
         0.0, 
         AxisContribution::new(1.0, 1.0), 
         1.0, 
-        0.0
+        //0.0
     );
     assert!(output.is_sign_negative());
     assert!(output < 0.0);
@@ -383,7 +379,7 @@ fn axis_pilot_control_output_valid_when_input_zero_and_assist_enabled(){
         0.0, 
         AxisContribution::new(1.0, 1.0), 
         1.0, 
-        0.0
+        //0.0
     );
     assert!((pilot_control_vel_output - 0.0).abs() < 0.001);
 }
@@ -396,7 +392,7 @@ fn axis_pilot_control_output_valid_when_input_zero_and_assist_disabled(){
         0.0, 
         AxisContribution::new(1.0, 1.0), 
         1.0, 
-        0.0
+        //0.0
     );
     assert!((pilot_control_acc_output - 0.0).abs() < 0.001);
 }
@@ -429,7 +425,7 @@ fn test_calculate_pilot_control_mode_acceleration_with_pos_input_and_assists_on(
         &velocity, 
         &available_acceleration,
         1.0, 
-        0.0, 
+        //0.0, 
     );
     assert!((output.linear().x() - 1.0).abs() < 0.001);
     assert!((output.linear().y() - 1.0).abs() < 0.001);
@@ -461,7 +457,7 @@ fn test_calculate_pilot_control_mode_acceleration_with_neg_input_and_assists_on(
         &velocity, 
         &available_acceleration,
         1.0, 
-        0.0, 
+        //0.0, 
     );
     assert!((output.linear().x() - (-1.0)).abs() < 0.001);
     assert!((output.linear().y() - (-1.0)).abs() < 0.001);
@@ -493,7 +489,7 @@ fn test_calculate_pilot_control_mode_acceleration_with_pos_input_and_assists_off
         &velocity, 
         &available_acceleration,
         1.0, 
-        0.0, 
+        //0.0, 
     );
     assert!((output.linear().x() - 1.0).abs() < 0.001);
     assert!((output.linear().y() - 1.0).abs() < 0.001);
@@ -525,7 +521,7 @@ fn test_calculate_pilot_control_mode_acceleration_with_neg_input_and_assists_off
         &velocity, 
         &available_acceleration,
         1.0, 
-        0.0, 
+        //0.0, 
     );
     assert!((output.linear().x() - (-1.0)).abs() < 0.001);
     assert!((output.linear().y() - (-1.0)).abs() < 0.001);

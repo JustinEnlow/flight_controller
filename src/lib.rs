@@ -1,110 +1,120 @@
 //! # Flight Control System(FCS)
-use std::ops::{Add, Sub, Mul, Div, Neg};
 use game_utils::{
     control_axis::{ControlAxis, AxisContribution},
     dimension3::Dimension3,
     toggle::Toggle,
 };
 use pid_controller::PID;
+use num::Float;
+use crate::propulsion_control::ThrusterMountPoint;
 
 
 pub mod feedback_controller;
 pub mod feedforward_controller;
 pub mod g_force_safety;
 pub mod propulsion_control;
+mod utils;
 
 
-pub struct FlightControlSystem<T>{
-    //power: Toggle, 
-    linear_assist: Toggle, 
-    rotational_assist: Toggle, 
-    autonomous_mode: Toggle, 
+
+
+
+// can use fcs struct or call functions independently
+pub struct FlightControlSystem<'a, T>{
+    linear_assist: Toggle,
+    rotational_assist: Toggle,
+    autonomous_mode: Toggle,
     max_velocity: ControlAxis<Dimension3<T>>,
-    velocity: ControlAxis<Dimension3<T>>,
-    position: ControlAxis<Dimension3<T>>,
     gsafety: Toggle, 
     gsafety_max_acceleration: ControlAxis<Dimension3<AxisContribution<T>>>,
     available_acceleration: ControlAxis<Dimension3<AxisContribution<T>>>,
     pid6dof: ControlAxis<Dimension3<PID<T>>>, 
-    //thruster_suite: &'a[ThrusterMountPoint<T>],
+    thruster_mount_points: &'a[ThrusterMountPoint<'a, T>],
 }
-impl<T> FlightControlSystem<T>
-    where T: Mul<Output = T>
-        + Div<Output = T>
-        + Add<Output = T>
-        + Sub<Output = T>
-        + Neg<Output = T>
-        + PartialOrd 
-        + Copy
+impl<'a, T> FlightControlSystem<'a, T>
+    where T: Float
 {
-    pub fn process(&mut self, input: ControlAxis<Dimension3<T>>, delta_time: T, zero: T){
-        //if self.power.enabled() == false{return;}
+    pub fn new(
+        linear_assist: Toggle,
+        rotational_assist: Toggle,
+        autonomous_mode: Toggle,
+        max_velocity: ControlAxis<Dimension3<T>>,
+        gsafety: Toggle, 
+        gsafety_max_acceleration: ControlAxis<Dimension3<AxisContribution<T>>>,
+        available_acceleration: ControlAxis<Dimension3<AxisContribution<T>>>,
+        pid6dof: ControlAxis<Dimension3<PID<T>>>, 
+        thruster_mount_points: &'a[ThrusterMountPoint<T>],
+    ) -> Self{
+        Self{
+            linear_assist,
+            rotational_assist,
+            autonomous_mode,
+            max_velocity,
+            gsafety, 
+            gsafety_max_acceleration,
+            available_acceleration,
+            pid6dof, 
+            thruster_mount_points,
+        }
+    }
 
+    pub fn process(&mut self, 
+        input: &ControlAxis<Dimension3<T>>, 
+        velocity: &ControlAxis<Dimension3<T>>,
+        position: &ControlAxis<Dimension3<T>>,
+        delta_time: T,
+    ){
         let mut desired_acceleration = game_utils::sum_d3_control_axes(
             if self.autonomous_mode.enabled(){
                 feedforward_controller::calculate_autonomous_mode_acceleration(
                     &input,
-                    &self.position,
-                    &self.velocity,
+                    position,
+                    velocity,
                     &self.max_velocity,
                     &self.available_acceleration,
                     delta_time,
                 )
             }else{
                 feedforward_controller::calculate_pilot_control_mode_acceleration(
-                    &input,
+                    input,
                     &self.linear_assist,
                     &self.rotational_assist,
                     &self.max_velocity,
-                    &self.velocity,
+                    velocity,
                     &self.available_acceleration,
                     delta_time,
-                    zero,
                 )
             },
             feedback_controller::calculate(
+                // calculated expected position
                 &ControlAxis::new(
-                    Dimension3::default(zero), 
-                    Dimension3::default(zero)
+                    Dimension3::default(num::zero()), 
+                    Dimension3::default(num::zero())
                 ), 
-                &ControlAxis::new(
-                    Dimension3::default(zero),
-                    Dimension3::default(zero)
-                ), 
+                position,
                 &mut self.pid6dof, 
                 &self.available_acceleration,
                 delta_time, 
-                zero, 
             )
         );
-
+    
         if self.gsafety.enabled(){
             desired_acceleration = g_force_safety::process(
                 &desired_acceleration, 
                 &self.gsafety_max_acceleration
             )
         }
-
-        let _ = propulsion_control::calculate_thruster_output(
-            &desired_acceleration, 
-            zero//mass
-        );
-
-        /////////////////////////////////////////////////////////////////////////////
-        // propulsion_control_system
-        /////////////////////////////////////////////////////////////////////////////
+    
         //Once the desired linear and rotational accelerations are established from the combined feedforward
         //and feedback control signals, the PCS must calculate the output of individual thrusters, as well as other
         //devices tasked with generating motion, so that these accelerations will be achieved to within a
         //reasonable degree of accuracy.
-        //propulsion_control::calculate_thruster_output(
-        //    &desired_acceleration,
-        //    thruster_suite,
-        //    mass,
-        //    zero,
-        //    output_thrust
-        //);
-
+        let _ = propulsion_control::calculate_thruster_output(
+            &desired_acceleration, 
+            self.thruster_mount_points,
+            num::zero()//mass
+        );
+    
         /////////////////////////////////////////////////////////////////////////////
         // calculate expected position from resultant thrusts/accelerations/velocities
         /////////////////////////////////////////////////////////////////////////////
@@ -115,7 +125,7 @@ impl<T> FlightControlSystem<T>
 
 
 
-// when is it appropriate to place tests here instead of in the code's module
+// when is it appropriate to place tests here instead of inline tests
 #[cfg(test)]
 mod tests{
     // use

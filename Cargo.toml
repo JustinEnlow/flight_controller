@@ -9,3 +9,5 @@ edition = "2021"
 pid_controller = {path = "../pid_controller"}
 # inertial_measurement = {path = "../inertial_measurement"}
 game_utils = {path = "../game_utils"}
+# nalgebra = "0.31.0"
+num = "0.4"
