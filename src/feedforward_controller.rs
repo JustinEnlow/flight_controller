@@ -1,6 +1,4 @@
 //! some documentation ...
-use std::ops::{Mul, Div, Add, Sub, Neg};
-use std::cmp::PartialOrd;
 use game_utils::{control_axis::{ControlAxis, AxisContribution}, toggle::Toggle, dimension3::Dimension3,};
 use num::Float;
 use crate::utils;
@@ -17,14 +15,7 @@ pub fn calculate_autonomous_mode_acceleration<T>(
     available_acceleration: &ControlAxis<Dimension3<AxisContribution<T>>>,
     delta_time: T,
 ) -> ControlAxis<Dimension3<T>>
-    where T: Mul<Output = T>
-    + Div<Output = T>
-    + Add<Output = T>
-    + Sub<Output = T>
-    + Neg<Output = T>
-    + PartialOrd 
-    + Float
-    + Copy
+    where T: Float
 {
     ControlAxis::new(
         Dimension3::new(
@@ -92,12 +83,7 @@ fn calculate_axis_autonomous_mode<T>(
     available_acceleration: AxisContribution<T>,
     delta_time: T,
 ) -> T
-    where T: Div<Output = T> 
-    + Sub<Output = T> 
-    + Neg<Output = T>
-    + PartialOrd 
-    + Float
-    + Copy 
+    where T: Float
 {
     let delta_position = goal_position - position;
     let desired_velocity = num::clamp(
@@ -125,14 +111,7 @@ pub fn calculate_pilot_control_mode_acceleration<T>(
     available_acceleration: &ControlAxis<Dimension3<AxisContribution<T>>>,
     delta_time: T,
 ) -> ControlAxis<Dimension3<T>>
-    where T: Mul<Output = T>
-    + Div<Output = T>
-    + Add<Output = T>
-    + Sub<Output = T>
-    + Neg<Output = T>
-    + PartialOrd 
-    + Float
-    + Copy
+    where T: Float
 {
     ControlAxis::new(
         Dimension3::new(
@@ -200,19 +179,14 @@ fn calculate_axis_pilot_control_mode<T>(
     available_acceleration: AxisContribution<T>,
     delta_time: T, 
 ) -> T
-    where T: Mul<Output = T> 
-    + Div<Output = T> 
-    + Add<Output = T> 
-    + Sub<Output = T> 
-    + Neg<Output = T> 
-    + PartialOrd 
-    + Float
-    + Copy
+    where T: Float
 {
     if assist_enabled{
         num::clamp(
             velocity_control(
-                input * max_velocity, velocity, delta_time
+                input * max_velocity, 
+                velocity, 
+                delta_time
             ),
             -(available_acceleration.negative()),
             available_acceleration.positive()
@@ -221,7 +195,9 @@ fn calculate_axis_pilot_control_mode<T>(
     else{
         utils::multiply_compare_zero(
             acceleration_control(
-                velocity, max_velocity, input
+                velocity, 
+                max_velocity, 
+                input
             ), 
             available_acceleration.positive(),
             available_acceleration.negative()
@@ -232,14 +208,14 @@ fn calculate_axis_pilot_control_mode<T>(
 
 
 fn velocity_control<T>(desired_velocity: T, velocity: T, delta_time: T) -> T
-    where T: Div<Output = T> + Sub<Output = T> + Neg<Output = T> + PartialOrd + Copy + Float
+    where T: Float
 {
     let delta_velocity = desired_velocity - velocity;
     delta_velocity / delta_time
 }
 
 fn acceleration_control<T>(velocity: T, max_velocity: T, input: T) -> T
-    where T: Neg<Output = T> + PartialOrd + Copy + Float
+    where T: Float
 {
     if (velocity >= max_velocity && input > num::zero()) 
     || (velocity <= -max_velocity && input < num::zero()){

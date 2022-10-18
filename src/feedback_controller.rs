@@ -1,7 +1,5 @@
 use game_utils::{control_axis::{ControlAxis, AxisContribution}, dimension3::Dimension3,};
 use pid_controller::PID;
-use std::ops::{Mul, Div, Add, Sub, Neg};
-use std::cmp::PartialOrd;
 use num::Float;
 use crate::utils;
 
@@ -13,13 +11,6 @@ pub fn calculate<T>(
     delta_time: T,
 ) -> ControlAxis<Dimension3<T>>
     where T: Float
-        + PartialOrd 
-        + Neg<Output = T>
-        + Mul<Output = T>
-        + Div<Output = T>
-        + Add<Output = T>
-        + Sub<Output = T>
-        + Copy
 {
     ControlAxis::new(
         Dimension3::new(

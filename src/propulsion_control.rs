@@ -1,7 +1,6 @@
 //! #Propulsion Control System
 
 use game_utils::{control_axis::{ControlAxis, AxisContribution}, dimension3::Dimension3};
-use std::ops::{Mul, Div, Add, Sub};
 use crate::utils::FcsError;
 use num::Float;
 
@@ -75,9 +74,7 @@ pub struct ThrusterMountPoint<'a, T>{
     mount_location: Dimension3<T>,   // relative to ship center of mass? // used to determine torque?
 }
 impl<'a, T> ThrusterMountPoint<'a, T>
-    where T: Copy 
-        + Sub<Output = T> 
-        + Float
+    where T: Float
 {
     pub fn new(
         attached_thruster: Option<Thruster<T>>,
@@ -112,7 +109,7 @@ impl<'a, T> ThrusterMountPoint<'a, T>
     }
 }
 
-fn _torque<T: Mul<Output = T> + Copy>(force: T, distance: T) -> T{
+fn _torque<T: Float /*Mul<Output = T> + Copy*/>(force: T, distance: T) -> T{
     //force(Newtons) * distance to center of mass or turning point(meters) * sin(angle_of_force_generator) 
     force * distance // * 1(if force generator perpendicular)
 }
@@ -127,7 +124,7 @@ pub fn calculate_available_thrust<T>(
     thruster_mount_points: &[ThrusterMountPoint<T>],
     //zero_value: T
 ) -> ControlAxis<Dimension3<AxisContribution<T>>>
-    where T: Copy + Add<Output = T> + Float
+    where T: Float//Copy + Add<Output = T>
 {
     let mut available_thrust = ControlAxis::new(
         Dimension3::default(AxisContribution::new(/*zero_value, zero_value*/num::zero(), num::zero())),
@@ -159,7 +156,7 @@ fn add_available_thrust_for_thrust_direction<T>(    //rename? sum available thru
     thruster_mount_point: &ThrusterMountPoint<T>,
     available_thrust: &mut ControlAxis<Dimension3<AxisContribution<T>>>,
 )
-    where T: Add<Output = T> + Copy + Sub<Output = T> + Float
+    where T: Float//Add<Output = T> + Copy + Sub<Output = T>
 {
     // if thruster can contribute thrust in desired direction, add its max thrust to the max available thrust for that direction
     for thrust_direction in thruster_mount_point.thrust_direction(){
@@ -226,7 +223,7 @@ pub fn calculate_available_acceleration<T>(
     available_thrust: &ControlAxis<Dimension3<AxisContribution<T>>>,
     mass: T
 ) -> ControlAxis<Dimension3<AxisContribution<T>>>
-    where T: Mul<Output = T> + Div<Output = T> + Copy
+    where T: Float//Mul<Output = T> + Div<Output = T> + Copy
 {
     ControlAxis::new(
         Dimension3::new(
@@ -270,8 +267,8 @@ pub fn calculate_thruster_output<T>(
     _thruster_mount_points: &[ThrusterMountPoint<T>],
     mass: T,
 ) -> ControlAxis<Dimension3<T>>
-    where T: Mul<Output = T>
-    + Copy
+    where T: Float//Mul<Output = T>
+    //+ Copy
 {
     //f = m * a
 

@@ -5,9 +5,15 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+
 [dependencies]
 pid_controller = {path = "../pid_controller"}
+
 # inertial_measurement = {path = "../inertial_measurement"}
+
 game_utils = {path = "../game_utils"}
+
 # nalgebra = "0.31.0"
+
+# used to reduce boilerplate trait bounds and the requirement for user defined zero value
 num = "0.4"

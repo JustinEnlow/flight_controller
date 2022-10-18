@@ -7,8 +7,7 @@
 
 use game_utils::dimension3::Dimension3;
 use game_utils::control_axis::{ControlAxis, AxisContribution};
-use std::ops::Neg;
-use num;
+use num::Float;
 
 
 
@@ -18,7 +17,7 @@ pub fn process<T>(
     desired_acceleration: &ControlAxis<Dimension3<T>>,
     gsafety_max_acceleration: &ControlAxis<Dimension3<AxisContribution<T>>>,
 ) -> ControlAxis<Dimension3<T>>
-    where T: Copy + PartialOrd + Neg<Output = T>
+    where T: Float
 {
     ControlAxis::new(
         Dimension3::new(
@@ -57,6 +56,3 @@ pub fn process<T>(
         )
     )
 }
-
-// clamping already tested in clamp module
-// no need to retest here.
