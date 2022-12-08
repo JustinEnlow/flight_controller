@@ -5,7 +5,6 @@ use game_utils::{
     dimension3::Dimension3,
 };
 use num::Float;
-use crate::utils;
 
 
 
@@ -102,7 +101,7 @@ fn calculate_axis_pilot_control_mode<T>(
         )
     }
     else{
-        utils::multiply_compare_zero(
+        crate::multiply_compare_zero(
             acceleration_control(
                 velocity, 
                 max_velocity, 

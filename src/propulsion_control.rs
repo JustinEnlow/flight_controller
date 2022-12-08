@@ -1,7 +1,7 @@
 //! #Propulsion Control System
 
 use game_utils::{control_axis::{ControlAxis, AxisContribution}, dimension3::Dimension3};
-use crate::utils::FcsError;
+use crate::FcsError;
 use num::Float;
 
 
