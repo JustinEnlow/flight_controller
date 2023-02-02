@@ -9,13 +9,21 @@ use num::Float;
 //use crate::propulsion_control::ThrusterMountPoint;
 
 
+pub mod input_processing;
 pub mod feedback_controller;
-pub mod feedforward_controller;
+//pub mod feedforward_controller;
 pub mod g_force_safety;
 pub mod propulsion_control;
 
 
 
+
+// we prob need a spaceship struct with relevent info. but this will go somewhere else.
+// useful for pcs and other...
+//struct Ship<T>{
+//    dry_mass: T,    // mass of ship structure without accounting for fuel, cargo, etc.
+//    center_of_mass: Dimension3<T>,
+//}
 
 
 // can use fcs struct or call functions independently
